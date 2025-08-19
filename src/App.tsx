@@ -26,6 +26,27 @@ interface TerminalLog {
   directory: string;
 }
 
+interface SFTPFile {
+  name: string;
+  type: 'file' | 'directory';
+  size: number;
+  modified: Date;
+  permissions: string;
+  path: string;
+}
+
+interface TransferItem {
+  id: string;
+  name: string;
+  type: 'upload' | 'download';
+  status: 'pending' | 'transferring' | 'completed' | 'error';
+  progress: number;
+  size: number;
+  localPath?: string;
+  remotePath: string;
+  error?: string;
+}
+
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [config, setConfig] = useState<SSHConfig>({
@@ -55,6 +76,13 @@ function App() {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
   const [showProfiles, setShowProfiles] = useState(false);
   const [selectedLogsDirectory, setSelectedLogsDirectory] = useState<string>('');
+
+  // SFTP state
+  const [showSFTP, setShowSFTP] = useState(false);
+  const [remoteFiles, setRemoteFiles] = useState<SFTPFile[]>([]);
+  const [remotePath, setRemotePath] = useState('/');
+  const [transfers, setTransfers] = useState<TransferItem[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<SFTPFile[]>([]);
 
   // Load saved data on component mount
   useEffect(() => {
@@ -127,6 +155,13 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [notification]);
+
+  // Load SFTP files when SFTP panel is opened
+  useEffect(() => {
+    if (showSFTP && isConnected) {
+      loadRemoteDirectory(remotePath);
+    }
+  }, [showSFTP, isConnected, remotePath]);
 
   // Keep terminal input focused when connected
   useEffect(() => {
@@ -451,6 +486,160 @@ Type 'help' to see available commands.`;
     }
   };
 
+  // SFTP Functions
+  const generateMockFiles = (path: string): SFTPFile[] => {
+    // Mock SFTP file listing for demonstration
+    if (path === '/') {
+      return [
+        { name: '..', type: 'directory', size: 0, modified: new Date(), permissions: 'drwxr-xr-x', path: '/' },
+        { name: 'home', type: 'directory', size: 4096, modified: new Date('2025-08-19'), permissions: 'drwxr-xr-x', path: '/home' },
+        { name: 'var', type: 'directory', size: 4096, modified: new Date('2025-08-18'), permissions: 'drwxr-xr-x', path: '/var' },
+        { name: 'etc', type: 'directory', size: 4096, modified: new Date('2025-08-17'), permissions: 'drwxr-xr-x', path: '/etc' },
+        { name: 'tmp', type: 'directory', size: 4096, modified: new Date('2025-08-20'), permissions: 'drwxrwxrwx', path: '/tmp' },
+        { name: 'README.txt', type: 'file', size: 1024, modified: new Date('2025-08-19'), permissions: '-rw-r--r--', path: '/README.txt' },
+        { name: 'config.json', type: 'file', size: 2048, modified: new Date('2025-08-18'), permissions: '-rw-r--r--', path: '/config.json' }
+      ];
+    } else if (path === '/home') {
+      return [
+        { name: '..', type: 'directory', size: 0, modified: new Date(), permissions: 'drwxr-xr-x', path: '/' },
+        { name: 'user', type: 'directory', size: 4096, modified: new Date('2025-08-19'), permissions: 'drwxr-xr-x', path: '/home/user' },
+        { name: 'documents', type: 'directory', size: 4096, modified: new Date('2025-08-18'), permissions: 'drwxr-xr-x', path: '/home/documents' },
+        { name: 'backup.tar.gz', type: 'file', size: 104857600, modified: new Date('2025-08-17'), permissions: '-rw-r--r--', path: '/home/backup.tar.gz' }
+      ];
+    } else {
+      return [
+        { name: '..', type: 'directory', size: 0, modified: new Date(), permissions: 'drwxr-xr-x', path: path.split('/').slice(0, -1).join('/') || '/' },
+        { name: 'file1.txt', type: 'file', size: 512, modified: new Date('2025-08-19'), permissions: '-rw-r--r--', path: `${path}/file1.txt` },
+        { name: 'file2.log', type: 'file', size: 1024, modified: new Date('2025-08-18'), permissions: '-rw-r--r--', path: `${path}/file2.log` }
+      ];
+    }
+  };
+
+  const loadRemoteDirectory = (path: string) => {
+    setRemotePath(path);
+    const files = generateMockFiles(path);
+    setRemoteFiles(files);
+    addTerminalLog('sftp-ls', `Listed directory: ${path} (${files.length - 1} items)`);
+  };
+
+  const navigateToPath = (newPath: string) => {
+    loadRemoteDirectory(newPath);
+  };
+
+  const downloadFile = (file: SFTPFile) => {
+    const transferId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newTransfer: TransferItem = {
+      id: transferId,
+      name: file.name,
+      type: 'download',
+      status: 'pending',
+      progress: 0,
+      size: file.size,
+      remotePath: file.path
+    };
+    
+    setTransfers(prev => [...prev, newTransfer]);
+    addTerminalLog('sftp-download', `Starting download: ${file.name} (${file.size} bytes)`);
+    
+    // Simulate download progress
+    simulateTransfer(transferId, 'download');
+  };
+
+  const uploadFiles = async (fileList?: File[]) => {
+    try {
+      let filesToUpload: File[] = [];
+      
+      if (fileList) {
+        filesToUpload = fileList;
+      } else if ('showOpenFilePicker' in window) {
+        const fileHandles = await (window as any).showOpenFilePicker({ multiple: true });
+        
+        for (const fileHandle of fileHandles) {
+          const file = await fileHandle.getFile();
+          filesToUpload.push(file);
+        }
+      } else {
+        setNotification({ message: 'File picker not supported in this browser', type: 'warning' });
+        return;
+      }
+
+      for (const file of filesToUpload) {
+        const transferId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const newTransfer: TransferItem = {
+          id: transferId,
+          name: file.name,
+          type: 'upload',
+          status: 'pending',
+          progress: 0,
+          size: file.size,
+          localPath: file.name,
+          remotePath: `${remotePath}/${file.name}`
+        };
+        
+        setTransfers(prev => [...prev, newTransfer]);
+        addTerminalLog('sftp-upload', `Starting upload: ${file.name} (${file.size} bytes)`);
+        
+        // Simulate upload progress
+        simulateTransfer(transferId, 'upload');
+      }
+      
+      setNotification({ message: `Uploaded ${filesToUpload.length} file(s)`, type: 'success' });
+      loadRemoteDirectory(remotePath);
+    } catch (error) {
+      if ((error as any).name !== 'AbortError') {
+        console.error('Error selecting files:', error);
+        setNotification({ message: 'Error selecting files for upload', type: 'warning' });
+      }
+    }
+  };
+
+  const simulateTransfer = (transferId: string, type: 'upload' | 'download') => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 20 + 5; // Random progress increment
+      
+      setTransfers(prev => prev.map(transfer => 
+        transfer.id === transferId 
+          ? { ...transfer, status: 'transferring', progress: Math.min(progress, 100) }
+          : transfer
+      ));
+      
+      if (progress >= 100) {
+        clearInterval(interval);
+        setTransfers(prev => prev.map(transfer => 
+          transfer.id === transferId 
+            ? { ...transfer, status: 'completed', progress: 100 }
+            : transfer
+        ));
+        
+        const actionText = type === 'upload' ? 'uploaded' : 'downloaded';
+        addTerminalLog(`sftp-${type}-complete`, `Successfully ${actionText} file`);
+        setNotification({ message: `File ${actionText} completed`, type: 'success' });
+        
+        // Refresh directory listing after upload
+        if (type === 'upload') {
+          setTimeout(() => loadRemoteDirectory(remotePath), 1000);
+        }
+      }
+    }, 200);
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const deleteFile = (file: SFTPFile) => {
+    if (confirm(`Are you sure you want to delete "${file.name}"?`)) {
+      setRemoteFiles(prev => prev.filter(f => f.name !== file.name));
+      addTerminalLog('sftp-delete', `Deleted: ${file.name}`);
+      setNotification({ message: `File "${file.name}" deleted`, type: 'success' });
+    }
+  };
+
   // Terminal-only interface for terminal tabs
   if (isTerminalTab && isConnected) {
     return (
@@ -507,6 +696,20 @@ Type 'help' to see available commands.`;
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
+              onClick={() => setShowSFTP(!showSFTP)}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: showSFTP ? '#059669' : '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.8rem'
+              }}
+            >
+              {showSFTP ? '📁 Hide SFTP' : '📁 Show SFTP'}
+            </button>
+            <button
               onClick={() => window.close()}
               style={{
                 padding: '0.5rem 1rem',
@@ -542,105 +745,435 @@ Type 'help' to see available commands.`;
           </div>
 
           {/* Terminal Content */}
-          <div 
-            className="powershell-scrollbar"
-            onClick={() => {
-              const input = document.querySelector('input[data-terminal-input="true"]') as HTMLInputElement;
-              if (input) input.focus();
-            }}
-            style={{ 
-              backgroundColor: '#012456', 
-              color: 'white', 
-              fontFamily: 'Consolas, "Courier New", monospace',
-              fontSize: '0.85rem',
-              padding: '1rem',
-              minHeight: 'calc(100vh - 200px)',
-              maxHeight: 'calc(100vh - 200px)',
-              overflowY: 'auto',
-              cursor: 'text'
-            }}
-          >
-            {/* PowerShell Header */}
-            <div style={{ marginBottom: '1rem', color: '#e5e7eb' }}>
-              <div>Windows PowerShell</div>
-              <div>Copyright (C) Microsoft Corporation. All rights reserved.</div>
-              <div style={{ marginTop: '0.5rem' }}>
-                Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
-              </div>
-              <div style={{ marginTop: '0.5rem' }}></div>
-            </div>
+          <div style={{ 
+            display: 'flex', 
+            height: 'calc(100vh - 200px)', 
+            gap: '0.5rem' 
+          }}>
+            {/* PowerShell Terminal */}
+            <div style={{ 
+              flex: showSFTP ? '1' : '1',
+              backgroundColor: '#012456',
+              border: '2px solid #1e40af',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div 
+                className="powershell-scrollbar"
+                onClick={() => {
+                  const input = document.querySelector('input[data-terminal-input="true"]') as HTMLInputElement;
+                  if (input) input.focus();
+                }}
+                style={{ 
+                  backgroundColor: '#012456', 
+                  color: 'white', 
+                  fontFamily: 'Consolas, "Courier New", monospace',
+                  fontSize: '0.85rem',
+                  padding: '1rem',
+                  flex: '1',
+                  overflowY: 'auto',
+                  cursor: 'text'
+                }}
+              >
+                {/* PowerShell Header */}
+                <div style={{ marginBottom: '1rem', color: '#e5e7eb' }}>
+                  <div>Windows PowerShell</div>
+                  <div>Copyright (C) Microsoft Corporation. All rights reserved.</div>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+                  </div>
+                  <div style={{ marginTop: '0.5rem' }}></div>
+                </div>
 
-            {/* Command History */}
-            {terminalLogs.map(log => (
-              <div key={log.id} style={{ marginBottom: '0.5rem' }}>
+                {/* Command History */}
+                {terminalLogs.map(log => (
+                  <div key={log.id} style={{ marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                      <span style={{ color: '#60a5fa', marginRight: '0.5rem', flexShrink: 0 }}>
+                        PS {log.directory}&gt;
+                      </span>
+                      <span style={{ color: 'white' }}>{log.command}</span>
+                    </div>
+                    {log.output && (
+                      <div style={{ 
+                        color: '#e5e7eb', 
+                        marginLeft: '0rem', 
+                        marginTop: '0.25rem',
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: '1.3'
+                      }}>
+                        {log.output}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Current Command Line */}
                 <div style={{ display: 'flex', alignItems: 'flex-start' }}>
                   <span style={{ color: '#60a5fa', marginRight: '0.5rem', flexShrink: 0 }}>
-                    PS {log.directory}&gt;
+                    PS {currentDirectory}&gt;
                   </span>
-                  <span style={{ color: 'white' }}>{log.command}</span>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={currentCommand}
+                      onChange={(e) => setCurrentCommand(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onKeyPress={(e) => e.key === 'Enter' && executeCommand()}
+                      onBlur={(e) => {
+                        setTimeout(() => e.target.focus(), 10);
+                      }}
+                      data-terminal-input="true"
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        color: 'white',
+                        fontSize: '0.85rem',
+                        fontFamily: 'Consolas, "Courier New", monospace',
+                        padding: 0,
+                        margin: 0,
+                        caretColor: 'white'
+                      }}
+                      placeholder=""
+                      autoComplete="off"
+                      autoFocus
+                    />
+                  </div>
                 </div>
-                {log.output && (
-                  <div style={{ 
-                    color: '#e5e7eb', 
-                    marginLeft: '0rem', 
-                    marginTop: '0.25rem',
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: '1.3'
+              </div>
+
+              {/* Status Bar */}
+              <div style={{ 
+                backgroundColor: '#1e40af', 
+                padding: '0.25rem 1rem', 
+                fontSize: '0.75rem', 
+                color: 'white',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span>Connected: {config.username}@{config.host}:{config.port}</span>
+                <span>Session: {sessionId.slice(-8)} | Logs: {terminalLogs.length}</span>
+              </div>
+            </div>
+
+            {/* SFTP Panel */}
+            {showSFTP && (
+              <div style={{
+                flex: '1',
+                backgroundColor: '#f8fafc',
+                border: '2px solid #1e40af',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                {/* SFTP Header */}
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: '#1e40af',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  borderBottom: '1px solid #e2e8f0'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>📁 SFTP File Browser</span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => loadRemoteDirectory(remotePath)}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        🔄 Refresh
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: '0.9' }}>
+                    Current Path: {remotePath}
+                  </div>
+                </div>
+
+                {/* File Browser */}
+                <div style={{
+                  flex: '1',
+                  overflow: 'auto',
+                  padding: '1rem'
+                }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          uploadFiles(Array.from(e.target.files));
+                        }
+                      }}
+                      style={{ display: 'none' }}
+                      id="file-upload"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        marginRight: '0.5rem'
+                      }}
+                    >
+                      ⬆️ Upload Files
+                    </label>
+                    {selectedFiles.length > 0 && (
+                      <button
+                        onClick={() => {
+                          selectedFiles.forEach(file => downloadFile(file));
+                          setSelectedFiles([]);
+                        }}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          marginRight: '0.5rem'
+                        }}
+                      >
+                        ⬇️ Download Selected ({selectedFiles.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* File List */}
+                  <div style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
                   }}>
-                    {log.output}
+                    {/* Header */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '40px 1fr 100px 120px 80px',
+                      gap: '0.5rem',
+                      padding: '0.5rem',
+                      backgroundColor: '#f1f5f9',
+                      borderBottom: '1px solid #e2e8f0',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold'
+                    }}>
+                      <div>📋</div>
+                      <div>Name</div>
+                      <div>Size</div>
+                      <div>Modified</div>
+                      <div>Actions</div>
+                    </div>
+
+                    {/* Parent Directory */}
+                    {remotePath !== '/' && (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '40px 1fr 100px 120px 80px',
+                          gap: '0.5rem',
+                          padding: '0.5rem',
+                          borderBottom: '1px solid #e2e8f0',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem'
+                        }}
+                        onClick={() => navigateToPath(remotePath.split('/').slice(0, -1).join('/') || '/')}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <div>📁</div>
+                        <div>..</div>
+                        <div>-</div>
+                        <div>-</div>
+                        <div>-</div>
+                      </div>
+                    )}
+
+                    {/* Files */}
+                    {remoteFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '40px 1fr 100px 120px 80px',
+                          gap: '0.5rem',
+                          padding: '0.5rem',
+                          borderBottom: index < remoteFiles.length - 1 ? '1px solid #e2e8f0' : 'none',
+                          cursor: file.type === 'directory' ? 'pointer' : 'default',
+                          fontSize: '0.8rem',
+                          backgroundColor: selectedFiles.includes(file) ? '#dbeafe' : 'transparent'
+                        }}
+                        onClick={() => {
+                          if (file.type === 'directory') {
+                            navigateToPath(file.path);
+                          } else {
+                            const newSelected = selectedFiles.includes(file)
+                              ? selectedFiles.filter(f => f !== file)
+                              : [...selectedFiles, file];
+                            setSelectedFiles(newSelected);
+                          }
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!selectedFiles.includes(file)) {
+                            e.currentTarget.style.backgroundColor = '#f8fafc';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!selectedFiles.includes(file)) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        <div>
+                          <input
+                            type="checkbox"
+                            checked={selectedFiles.includes(file)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const newSelected = e.target.checked
+                                ? [...selectedFiles, file]
+                                : selectedFiles.filter(f => f !== file);
+                              setSelectedFiles(newSelected);
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>{file.type === 'directory' ? '📁' : '📄'}</span>
+                          <span>{file.name}</span>
+                        </div>
+                        <div>{file.type === 'file' ? formatFileSize(file.size) : '-'}</div>
+                        <div>{file.modified.toLocaleDateString()}</div>
+                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                          {file.type === 'file' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadFile(file);
+                              }}
+                              style={{
+                                padding: '0.25rem',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '2px',
+                                cursor: 'pointer',
+                                fontSize: '0.7rem'
+                              }}
+                              title="Download"
+                            >
+                              ⬇️
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteFile(file);
+                            }}
+                            style={{
+                              padding: '0.25rem',
+                              backgroundColor: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '2px',
+                              cursor: 'pointer',
+                              fontSize: '0.7rem'
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Transfer Progress */}
+                {transfers.length > 0 && (
+                  <div style={{
+                    borderTop: '1px solid #e2e8f0',
+                    padding: '1rem',
+                    backgroundColor: '#f8fafc',
+                    maxHeight: '200px',
+                    overflow: 'auto'
+                  }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                      File Transfers
+                    </h4>
+                    {transfers.map((transfer) => (
+                      <div
+                        key={transfer.id}
+                        style={{
+                          marginBottom: '0.5rem',
+                          padding: '0.5rem',
+                          backgroundColor: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '4px',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>
+                            {transfer.type === 'upload' ? '⬆️' : '⬇️'} {transfer.name}
+                          </span>
+                          <span style={{
+                            color: transfer.status === 'completed' ? '#10b981' : 
+                                  transfer.status === 'error' ? '#ef4444' : '#6b7280'
+                          }}>
+                            {transfer.status}
+                          </span>
+                        </div>
+                        {transfer.status === 'transferring' && (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <div style={{
+                              width: '100%',
+                              height: '4px',
+                              backgroundColor: '#e2e8f0',
+                              borderRadius: '2px',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                width: `${transfer.progress}%`,
+                                height: '100%',
+                                backgroundColor: '#3b82f6',
+                                transition: 'width 0.3s ease'
+                              }} />
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                              {transfer.progress}% - {formatFileSize(transfer.size)}
+                            </div>
+                          </div>
+                        )}
+                        {transfer.error && (
+                          <div style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.25rem' }}>
+                            Error: {transfer.error}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-            ))}
-
-            {/* Current Command Line */}
-            <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-              <span style={{ color: '#60a5fa', marginRight: '0.5rem', flexShrink: 0 }}>
-                PS {currentDirectory}&gt;
-              </span>
-              <div style={{ flex: 1, position: 'relative' }}>
-                <input
-                  type="text"
-                  value={currentCommand}
-                  onChange={(e) => setCurrentCommand(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onKeyPress={(e) => e.key === 'Enter' && executeCommand()}
-                  onBlur={(e) => {
-                    setTimeout(() => e.target.focus(), 10);
-                  }}
-                  data-terminal-input="true"
-                  style={{
-                    width: '100%',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: 'white',
-                    fontSize: '0.85rem',
-                    fontFamily: 'Consolas, "Courier New", monospace',
-                    padding: 0,
-                    margin: 0,
-                    caretColor: 'white'
-                  }}
-                  placeholder=""
-                  autoComplete="off"
-                  autoFocus
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Status Bar */}
-          <div style={{ 
-            backgroundColor: '#1e40af', 
-            padding: '0.25rem 1rem', 
-            fontSize: '0.75rem', 
-            color: 'white',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <span>Connected: {config.username}@{config.host}:{config.port}</span>
-            <span>Session: {sessionId.slice(-8)} | Logs: {terminalLogs.length}</span>
+            )}
           </div>
         </div>
 
