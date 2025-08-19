@@ -16,6 +16,7 @@ interface ConnectionProfile {
   username: string;
   lastUsed: Date;
   logsDirectory?: string;
+  commandHistory?: string[]; // Add command history to profile
 }
 
 interface TerminalLog {
@@ -156,6 +157,20 @@ function App() {
     }
   }, [notification]);
 
+  // Load command history for current profile when connected
+  useEffect(() => {
+    if (isConnected && config.profileName) {
+      const currentProfile = profiles.find(profile => 
+        profile.host === config.host && 
+        profile.username === config.username && 
+        profile.port === config.port
+      );
+      if (currentProfile && currentProfile.commandHistory) {
+        setCommandHistory(currentProfile.commandHistory);
+      }
+    }
+  }, [isConnected, config, profiles]);
+
   // Load SFTP files when SFTP panel is opened
   useEffect(() => {
     if (showSFTP && isConnected) {
@@ -188,10 +203,11 @@ function App() {
       const saved = localStorage.getItem('quantumxfer-profiles');
       if (saved) {
         const parsedProfiles = JSON.parse(saved);
-        // Convert lastUsed string back to Date object
+        // Convert lastUsed string back to Date object and ensure commandHistory exists
         const profilesWithDates = parsedProfiles.map((profile: any) => ({
           ...profile,
-          lastUsed: new Date(profile.lastUsed)
+          lastUsed: new Date(profile.lastUsed),
+          commandHistory: profile.commandHistory || [] // Ensure commandHistory exists
         }));
         setProfiles(profilesWithDates);
       }
@@ -291,7 +307,8 @@ function App() {
             port: config.port,
             username: config.username,
             lastUsed: new Date(),
-            logsDirectory: selectedLogsDirectory || undefined
+            logsDirectory: selectedLogsDirectory || undefined,
+            commandHistory: []
           };
           const updatedProfiles = [...profiles, newProfile];
           saveProfiles(updatedProfiles);
@@ -398,6 +415,23 @@ Type 'help' to see available commands.`;
       
       addTerminalLog(cmd, output);
       setCurrentCommand('');
+      
+      // Save updated command history to profile
+      if (config.profileName) {
+        const updatedProfiles = profiles.map(profile => {
+          if (profile.host === config.host && 
+              profile.username === config.username && 
+              profile.port === config.port) {
+            return { 
+              ...profile, 
+              commandHistory: [...(profile.commandHistory || []), cmd],
+              lastUsed: new Date()
+            };
+          }
+          return profile;
+        });
+        saveProfiles(updatedProfiles);
+      }
     }
   };
 
@@ -435,6 +469,10 @@ Type 'help' to see available commands.`;
     if (profile.logsDirectory) {
       setSelectedLogsDirectory(profile.logsDirectory);
     }
+    
+    // Load command history from profile
+    setCommandHistory(profile.commandHistory || []);
+    setHistoryIndex(-1);
     
     setShowProfiles(false);
     
