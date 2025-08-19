@@ -86,13 +86,13 @@ function App() {
 
   // Enterprise features state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'lastUsed' | 'name' | 'frequency'>('lastUsed');
-  const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
-  const [showAdvancedConnection, setShowAdvancedConnection] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+  // const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
+  // const [showAdvancedConnection, setShowAdvancedConnection] = useState(false);
+  // const [darkMode, setDarkMode] = useState(true);
+  // const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
 
   // SFTP state
   const [showSFTP, setShowSFTP] = useState(false);

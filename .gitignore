@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-electron
+dist-packager
 *.local
 
 # Editor directories and files
@@ -28,3 +30,27 @@ dist-ssr
 *.bak
 *_backup.*
 *_broken.*
+
+# Electron build artifacts
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+
+# Environment files
+.env
+.env.test
+.env.local
+.env.production
+
+# Cache directories
+.cache
+.parcel-cache
+.eslintcache
+
+# Release packages (large binary files)
+# Note: Consider using Git LFS for large binary files
+dist-packager/*.zip
