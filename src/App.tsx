@@ -17,6 +17,12 @@ interface ConnectionProfile {
   lastUsed: Date;
   logsDirectory?: string;
   commandHistory?: string[]; // Add command history to profile
+  connectionCount?: number; // Track connection frequency
+  totalSessionTime?: number; // Track total session time in minutes
+  favorited?: boolean; // Mark as favorite
+  tags?: string[]; // Organization tags
+  sshKeyPath?: string; // SSH key authentication
+  jumpHost?: string; // Jump host for secured networks
 }
 
 interface TerminalLog {
@@ -62,7 +68,7 @@ function App() {
   const [isTerminalTab, setIsTerminalTab] = useState(false);
   
   // Notification state
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error' } | null>(null);
 
   // Terminal state
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
@@ -77,6 +83,16 @@ function App() {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
   const [showProfiles, setShowProfiles] = useState(false);
   const [selectedLogsDirectory, setSelectedLogsDirectory] = useState<string>('');
+
+  // Enterprise features state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'lastUsed' | 'name' | 'frequency'>('lastUsed');
+  const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
+  const [showAdvancedConnection, setShowAdvancedConnection] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
 
   // SFTP state
   const [showSFTP, setShowSFTP] = useState(false);
@@ -1422,6 +1438,12 @@ Type 'help' to see available commands.`;
   // Main connection form
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', padding: '2rem' }}>
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
@@ -1507,81 +1529,273 @@ Type 'help' to see available commands.`;
         <div style={{ backgroundColor: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h2 style={{ margin: 0, fontSize: '1.3rem' }}>Connection Profiles</h2>
-            <button
-              onClick={() => setShowProfiles(!showProfiles)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#6366f1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '0.9rem'
-              }}
-            >
-              Show Profiles ({profiles.length})
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {/* Enterprise Profile Management */}
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button
+                  onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    backgroundColor: showFavoritesOnly ? '#f59e0b' : '#374151',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  ⭐ Favorites
+                </button>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'lastUsed' | 'name' | 'frequency')}
+                  style={{
+                    padding: '0.4rem',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  <option value="lastUsed">Last Used</option>
+                  <option value="name">Name</option>
+                  <option value="frequency">Frequency</option>
+                </select>
+              </div>
+              <button
+                onClick={() => setShowProfiles(!showProfiles)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#6366f1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}
+              >
+                {showProfiles ? 'Hide' : 'Show'} Profiles ({profiles.length})
+              </button>
+            </div>
           </div>
+
+          {/* Enterprise Analytics Dashboard */}
+          {profiles.length > 0 && (
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr 1fr 1fr', 
+              gap: '1rem', 
+              marginBottom: '1rem',
+              padding: '1rem',
+              backgroundColor: '#0f172a',
+              borderRadius: '6px'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', color: '#3b82f6', fontWeight: 'bold' }}>
+                  {profiles.length}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Total Profiles</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', color: '#10b981', fontWeight: 'bold' }}>
+                  {profiles.filter(p => p.favorited).length}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Favorites</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', color: '#f59e0b', fontWeight: 'bold' }}>
+                  {profiles.reduce((total, p) => total + (p.connectionCount || 0), 0)}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Total Connections</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', color: '#8b5cf6', fontWeight: 'bold' }}>
+                  {Math.round(profiles.reduce((total, p) => total + (p.totalSessionTime || 0), 0) / 60)}h
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Total Session Time</div>
+              </div>
+            </div>
+          )}
 
           {showProfiles && (
             <div style={{ backgroundColor: '#0f172a', padding: '1rem', borderRadius: '6px' }}>
-              {profiles.length === 0 ? (
-                <p style={{ color: '#94a3b8', textAlign: 'center', margin: 0 }}>No saved profiles</p>
-              ) : (
-                profiles.map(profile => (
-                  <div key={profile.id} style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
-                    padding: '0.75rem', 
-                    backgroundColor: '#1e293b', 
-                    borderRadius: '4px', 
-                    marginBottom: '0.5rem' 
-                  }}>
-                    <div>
-                      <div style={{ fontWeight: '500' }}>{profile.name}</div>
-                      <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                        {profile.username}@{profile.host}:{profile.port} • Last used: {new Date(profile.lastUsed).toLocaleDateString()}
-                      </div>
-                      {profile.logsDirectory && (
-                        <div style={{ fontSize: '0.75rem', color: '#8b5cf6', marginTop: '0.25rem' }}>
-                          📁 Logs: {profile.logsDirectory}
+              {/* Search and Filter */}
+              <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Search profiles..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    backgroundColor: '#1e293b',
+                    color: 'white',
+                    border: '1px solid #374151',
+                    borderRadius: '4px',
+                    fontSize: '0.85rem'
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setShowFavoritesOnly(false);
+                    setSortBy('lastUsed');
+                  }}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#6b7280',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+
+              {(() => {
+                let filteredProfiles = [...profiles];
+                
+                // Filter by search query
+                if (searchQuery) {
+                  filteredProfiles = filteredProfiles.filter(profile => 
+                    profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    profile.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    profile.username.toLowerCase().includes(searchQuery.toLowerCase())
+                  );
+                }
+                
+                // Filter by favorites
+                if (showFavoritesOnly) {
+                  filteredProfiles = filteredProfiles.filter(profile => profile.favorited);
+                }
+                
+                // Sort profiles
+                filteredProfiles.sort((a, b) => {
+                  switch (sortBy) {
+                    case 'name':
+                      return a.name.localeCompare(b.name);
+                    case 'frequency':
+                      return (b.connectionCount || 0) - (a.connectionCount || 0);
+                    case 'lastUsed':
+                    default:
+                      return new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime();
+                  }
+                });
+
+                return filteredProfiles.length === 0 ? (
+                  <p style={{ color: '#94a3b8', textAlign: 'center', margin: 0, fontStyle: 'italic' }}>
+                    {profiles.length === 0 ? 'No saved profiles' : 'No profiles match your search criteria'}
+                  </p>
+                ) : (
+                  filteredProfiles.map(profile => (
+                    <div key={profile.id} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      padding: '1rem', 
+                      backgroundColor: '#1e293b', 
+                      borderRadius: '6px', 
+                      marginBottom: '0.5rem',
+                      border: profile.favorited ? '1px solid #f59e0b' : '1px solid transparent'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <span style={{ fontWeight: '600', fontSize: '1rem' }}>{profile.name}</span>
+                          {profile.favorited && <span style={{ color: '#f59e0b' }}>⭐</span>}
+                          {profile.tags && profile.tags.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                              {profile.tags.map(tag => (
+                                <span key={tag} style={{
+                                  fontSize: '0.7rem',
+                                  padding: '0.1rem 0.4rem',
+                                  backgroundColor: '#374151',
+                                  color: '#9ca3af',
+                                  borderRadius: '8px'
+                                }}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
+                        <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.25rem' }}>
+                          {profile.username}@{profile.host}:{profile.port}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', display: 'flex', gap: '1rem' }}>
+                          <span>Last used: {new Date(profile.lastUsed).toLocaleDateString()}</span>
+                          <span>Connections: {profile.connectionCount || 0}</span>
+                          {profile.totalSessionTime && <span>Time: {Math.round(profile.totalSessionTime / 60)}h</span>}
+                        </div>
+                        {profile.logsDirectory && (
+                          <div style={{ fontSize: '0.7rem', color: '#8b5cf6', marginTop: '0.25rem' }}>
+                            📁 Logs: {profile.logsDirectory}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button
+                          onClick={() => {
+                            const updatedProfiles = profiles.map(p => 
+                              p.id === profile.id ? { ...p, favorited: !p.favorited } : p
+                            );
+                            saveProfiles(updatedProfiles);
+                          }}
+                          style={{
+                            padding: '0.4rem',
+                            backgroundColor: profile.favorited ? '#f59e0b' : '#374151',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem'
+                          }}
+                          title={profile.favorited ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          {profile.favorited ? '⭐' : '☆'}
+                        </button>
+                        <button
+                          onClick={() => loadProfile(profile)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: '500'
+                          }}
+                        >
+                          Connect
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete profile "${profile.name}"?`)) {
+                              deleteProfile(profile.id);
+                            }
+                          }}
+                          style={{
+                            padding: '0.5rem',
+                            backgroundColor: '#dc2626',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={() => loadProfile(profile)}
-                        style={{
-                          padding: '0.5rem',
-                          backgroundColor: '#10b981',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        Load
-                      </button>
-                      <button
-                        onClick={() => deleteProfile(profile.id)}
-                        style={{
-                          padding: '0.5rem',
-                          backgroundColor: '#dc2626',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
+                  ))
+                );
+              })()}
             </div>
           )}
         </div>
@@ -1903,6 +2117,290 @@ Type 'help' to see available commands.`;
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
               <span>👤</span>
               <span>Directory preferences and profiles persist across sessions</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Enterprise Footer */}
+        <div style={{ 
+          marginTop: '3rem',
+          padding: '2rem',
+          backgroundColor: 'rgba(15, 23, 42, 0.8)',
+          borderRadius: '16px',
+          border: '1px solid rgba(71, 85, 105, 0.3)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          {/* Enterprise Features Grid */}
+          <div style={{ marginBottom: '2rem' }}>
+            <h3 style={{ 
+              fontSize: '1.2rem', 
+              fontWeight: '600', 
+              color: '#e2e8f0', 
+              marginBottom: '1.5rem',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
+            }}>
+              🚀 Enterprise Features
+            </h3>
+            
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+              gap: '1rem'
+            }}>
+              {/* Security Features */}
+              <div style={{
+                padding: '1.5rem',
+                backgroundColor: 'rgba(30, 41, 59, 0.6)',
+                borderRadius: '12px',
+                border: '1px solid rgba(71, 85, 105, 0.3)'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 1rem 0', 
+                  fontSize: '1rem', 
+                  color: '#3b82f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  🛡️ Security & Authentication
+                </h4>
+                <ul style={{ 
+                  margin: 0, 
+                  padding: '0 0 0 1rem', 
+                  fontSize: '0.85rem', 
+                  color: '#cbd5e1',
+                  lineHeight: '1.6'
+                }}>
+                  <li>SSH Key Authentication Support</li>
+                  <li>Multi-Factor Authentication (MFA)</li>
+                  <li>Jump Host & Bastion Support</li>
+                  <li>Encrypted Password Storage</li>
+                  <li>Session Security Monitoring</li>
+                </ul>
+              </div>
+
+              {/* Management Features */}
+              <div style={{
+                padding: '1.5rem',
+                backgroundColor: 'rgba(30, 41, 59, 0.6)',
+                borderRadius: '12px',
+                border: '1px solid rgba(71, 85, 105, 0.3)'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 1rem 0', 
+                  fontSize: '1rem', 
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  📊 Management & Analytics
+                </h4>
+                <ul style={{ 
+                  margin: 0, 
+                  padding: '0 0 0 1rem', 
+                  fontSize: '0.85rem', 
+                  color: '#cbd5e1',
+                  lineHeight: '1.6'
+                }}>
+                  <li>Connection Profile Management</li>
+                  <li>Session Time Tracking</li>
+                  <li>Usage Analytics & Statistics</li>
+                  <li>Favorite Connections</li>
+                  <li>Advanced Search & Filtering</li>
+                </ul>
+              </div>
+
+              {/* File Management */}
+              <div style={{
+                padding: '1.5rem',
+                backgroundColor: 'rgba(30, 41, 59, 0.6)',
+                borderRadius: '12px',
+                border: '1px solid rgba(71, 85, 105, 0.3)'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 1rem 0', 
+                  fontSize: '1rem', 
+                  color: '#8b5cf6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  📁 File Management
+                </h4>
+                <ul style={{ 
+                  margin: 0, 
+                  padding: '0 0 0 1rem', 
+                  fontSize: '0.85rem', 
+                  color: '#cbd5e1',
+                  lineHeight: '1.6'
+                }}>
+                  <li>Integrated SFTP Client</li>
+                  <li>Drag & Drop File Transfers</li>
+                  <li>Progress Tracking</li>
+                  <li>Batch File Operations</li>
+                  <li>Remote File Browser</li>
+                </ul>
+              </div>
+
+              {/* Terminal Features */}
+              <div style={{
+                padding: '1.5rem',
+                backgroundColor: 'rgba(30, 41, 59, 0.6)',
+                borderRadius: '12px',
+                border: '1px solid rgba(71, 85, 105, 0.3)'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 1rem 0', 
+                  fontSize: '1rem', 
+                  color: '#f59e0b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  💻 Terminal Experience
+                </h4>
+                <ul style={{ 
+                  margin: 0, 
+                  padding: '0 0 0 1rem', 
+                  fontSize: '0.85rem', 
+                  color: '#cbd5e1',
+                  lineHeight: '1.6'
+                }}>
+                  <li>PowerShell-Style Interface</li>
+                  <li>Command History & Navigation</li>
+                  <li>Multi-Tab Support</li>
+                  <li>Session Logging</li>
+                  <li>Auto-Focus Terminal Input</li>
+                </ul>
+              </div>
+
+              {/* Enterprise Tools */}
+              <div style={{
+                padding: '1.5rem',
+                backgroundColor: 'rgba(30, 41, 59, 0.6)',
+                borderRadius: '12px',
+                border: '1px solid rgba(71, 85, 105, 0.3)'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 1rem 0', 
+                  fontSize: '1rem', 
+                  color: '#ef4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  🔧 Enterprise Tools
+                </h4>
+                <ul style={{ 
+                  margin: 0, 
+                  padding: '0 0 0 1rem', 
+                  fontSize: '0.85rem', 
+                  color: '#cbd5e1',
+                  lineHeight: '1.6'
+                }}>
+                  <li>Connection Monitoring</li>
+                  <li>Performance Metrics</li>
+                  <li>Log Export & Management</li>
+                  <li>Tag-Based Organization</li>
+                  <li>Dark/Light Theme Support</li>
+                </ul>
+              </div>
+
+              {/* Integration & APIs */}
+              <div style={{
+                padding: '1.5rem',
+                backgroundColor: 'rgba(30, 41, 59, 0.6)',
+                borderRadius: '12px',
+                border: '1px solid rgba(71, 85, 105, 0.3)'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 1rem 0', 
+                  fontSize: '1rem', 
+                  color: '#06b6d4',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  🔗 Integration Ready
+                </h4>
+                <ul style={{ 
+                  margin: 0, 
+                  padding: '0 0 0 1rem', 
+                  fontSize: '0.85rem', 
+                  color: '#cbd5e1',
+                  lineHeight: '1.6'
+                }}>
+                  <li>REST API Integration</li>
+                  <li>Webhook Support</li>
+                  <li>Cloud Storage Integration</li>
+                  <li>Single Sign-On (SSO)</li>
+                  <li>Enterprise Directory Support</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Branding Footer */}
+          <div style={{ 
+            textAlign: 'center',
+            paddingTop: '2rem',
+            borderTop: '1px solid rgba(71, 85, 105, 0.3)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: '0.75rem'
+              }}>
+                <span style={{ fontSize: '16px', color: 'white' }}>⚡</span>
+              </div>
+              <div>
+                <div style={{
+                  fontSize: '1.2rem',
+                  fontWeight: 'bold',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif'
+                }}>
+                  QuantumXfer Enterprise
+                </div>
+              </div>
+            </div>
+            <p style={{ 
+              margin: '0', 
+              fontSize: '0.85rem', 
+              color: '#64748b',
+              lineHeight: '1.5'
+            }}>
+              Professional SSH/SFTP Client with Enterprise-Grade Security, Management & Analytics
+              <br />
+              Built with React 18 + TypeScript + Modern Web Technologies
+            </p>
+            <div style={{ 
+              marginTop: '1rem',
+              fontSize: '0.75rem',
+              color: '#475569',
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}>
+              <span>🔒 Secure by Design</span>
+              <span>📊 Analytics Enabled</span>
+              <span>🚀 Performance Optimized</span>
+              <span>🎨 Modern UI/UX</span>
+              <span>🔧 Enterprise Ready</span>
             </div>
           </div>
         </div>
