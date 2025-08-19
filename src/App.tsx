@@ -1282,17 +1282,54 @@ Type 'help' to see available commands.`;
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', padding: '2rem' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          {/* Header */}
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <h1 style={{ fontSize: '3rem', fontWeight: 'bold', marginBottom: '0.5rem', background: 'linear-gradient(45deg, #06b6d4, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              QuantumXfer
-            </h1>
-            <p style={{ fontSize: '1.2rem', color: '#94a3b8' }}>
-              Secure SSH/SFTP Client with Terminal Logging & Session Management
-            </p>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+            <div style={{
+              width: '60px',
+              height: '60px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: '1rem',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+            }}>
+              <span style={{ fontSize: '24px', color: 'white' }}>⚡</span>
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <h1 style={{ 
+                fontSize: '2.5rem', 
+                fontWeight: 'bold', 
+                margin: '0',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                WebkitBackgroundClip: 'text', 
+                WebkitTextFillColor: 'transparent',
+                fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif'
+              }}>
+                QuantumXfer
+              </h1>
+              <p style={{ 
+                fontSize: '0.9rem', 
+                color: '#64748b', 
+                margin: '0',
+                fontWeight: '500'
+              }}>
+                Enterprise SSH/SFTP Client
+              </p>
+            </div>
           </div>
-
-          {/* Connection Success */}
+          <p style={{ 
+            fontSize: '1.1rem', 
+            color: '#475569',
+            maxWidth: '600px',
+            margin: '0 auto',
+            lineHeight: '1.6'
+          }}>
+            Secure SSH/SFTP Client with PowerShell Terminal, File Management, and Advanced Session Control
+          </p>
+        </div>          {/* Connection Success */}
           <div style={{ 
             textAlign: 'center', 
             padding: '2rem', 
@@ -1622,8 +1659,47 @@ Type 'help' to see available commands.`;
         </div>
 
         {/* SSH Connection Form */}
-        <div style={{ backgroundColor: '#1e293b', padding: '2rem', borderRadius: '8px' }}>
-          <h2 style={{ margin: '0 0 1.5rem 0', fontSize: '1.5rem' }}>SSH Connection</h2>
+        <div style={{ 
+          backgroundColor: 'rgba(30, 41, 59, 0.95)', 
+          backdropFilter: 'blur(10px)',
+          padding: '2.5rem', 
+          borderRadius: '20px',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.3), 0 1px 3px rgba(255,255,255,0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: '1rem'
+            }}>
+              <span style={{ fontSize: '20px', color: 'white' }}>🔒</span>
+            </div>
+            <div>
+              <h2 style={{ 
+                margin: '0', 
+                fontSize: '1.5rem', 
+                fontWeight: '600',
+                color: 'white',
+                fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif'
+              }}>
+                SSH Connection
+              </h2>
+              <p style={{ 
+                margin: '0', 
+                fontSize: '0.9rem', 
+                color: '#94a3b8',
+                fontWeight: '400'
+              }}>
+                Secure Shell Remote Access
+              </p>
+            </div>
+          </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div>
