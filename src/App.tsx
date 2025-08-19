@@ -527,6 +527,12 @@ Type 'help' to see available commands.`;
   };
 
   const downloadFile = (file: SFTPFile) => {
+    // Only allow downloading files, not directories
+    if (file.type !== 'file') {
+      setNotification({ message: 'Cannot download directories', type: 'warning' });
+      return;
+    }
+    
     const transferId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newTransfer: TransferItem = {
       id: transferId,
@@ -937,11 +943,12 @@ Type 'help' to see available commands.`;
                     >
                       ⬆️ Upload
                     </label>
-                    {selectedFiles.length > 0 && (
+                    {selectedFiles.filter(file => file.type === 'file').length > 0 && (
                       <button
                         onClick={() => {
-                          selectedFiles.forEach(file => downloadFile(file));
-                          setSelectedFiles([]);
+                          const filesToDownload = selectedFiles.filter(file => file.type === 'file');
+                          filesToDownload.forEach(file => downloadFile(file));
+                          setSelectedFiles(selectedFiles.filter(file => file.type === 'directory'));
                         }}
                         style={{
                           padding: '0.3rem 0.6rem',
@@ -953,7 +960,7 @@ Type 'help' to see available commands.`;
                           fontSize: '0.7rem'
                         }}
                       >
-                        ⬇️ Get ({selectedFiles.length})
+                        ⬇️ Get ({selectedFiles.filter(file => file.type === 'file').length})
                       </button>
                     )}
                   </div>
@@ -1000,12 +1007,8 @@ Type 'help' to see available commands.`;
                         onClick={() => {
                           if (file.type === 'directory') {
                             navigateToPath(file.path);
-                          } else {
-                            const newSelected = selectedFiles.includes(file)
-                              ? selectedFiles.filter(f => f !== file)
-                              : [...selectedFiles, file];
-                            setSelectedFiles(newSelected);
                           }
+                          // Don't auto-select files on click - only via checkbox
                         }}
                         onMouseEnter={(e) => {
                           if (!selectedFiles.includes(file)) {
@@ -1029,7 +1032,13 @@ Type 'help' to see available commands.`;
                               : selectedFiles.filter(f => f !== file);
                             setSelectedFiles(newSelected);
                           }}
-                          style={{ cursor: 'pointer', marginRight: '0.4rem', transform: 'scale(0.8)' }}
+                          style={{ 
+                            cursor: 'pointer', 
+                            marginRight: '0.4rem', 
+                            transform: 'scale(0.8)',
+                            opacity: file.type === 'directory' ? 0.6 : 1
+                          }}
+                          title={file.type === 'directory' ? 'Directories cannot be downloaded' : 'Select for download'}
                         />
                         
                         {/* File Icon & Name */}
