@@ -752,7 +752,7 @@ Type 'help' to see available commands.`;
           }}>
             {/* PowerShell Terminal */}
             <div style={{ 
-              flex: showSFTP ? '1' : '1',
+              flex: showSFTP ? '2' : '1',
               backgroundColor: '#012456',
               border: '2px solid #1e40af',
               borderRadius: '8px',
@@ -865,6 +865,8 @@ Type 'help' to see available commands.`;
             {showSFTP && (
               <div style={{
                 flex: '1',
+                minWidth: '300px',
+                maxWidth: '400px',
                 backgroundColor: '#f8fafc',
                 border: '2px solid #1e40af',
                 borderRadius: '8px',
@@ -874,33 +876,31 @@ Type 'help' to see available commands.`;
               }}>
                 {/* SFTP Header */}
                 <div style={{
-                  padding: '1rem',
+                  padding: '0.75rem',
                   backgroundColor: '#1e40af',
                   color: 'white',
                   fontWeight: 'bold',
                   borderBottom: '1px solid #e2e8f0'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>📁 SFTP File Browser</span>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={() => loadRemoteDirectory(remotePath)}
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          backgroundColor: '#3b82f6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem'
-                        }}
-                      >
-                        🔄 Refresh
-                      </button>
-                    </div>
+                    <span style={{ fontSize: '0.85rem' }}>📁 SFTP Browser</span>
+                    <button
+                      onClick={() => loadRemoteDirectory(remotePath)}
+                      style={{
+                        padding: '0.2rem 0.4rem',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem'
+                      }}
+                    >
+                      🔄
+                    </button>
                   </div>
-                  <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: '0.9' }}>
-                    Current Path: {remotePath}
+                  <div style={{ fontSize: '0.7rem', marginTop: '0.3rem', opacity: '0.9' }}>
+                    {remotePath.length > 25 ? '...' + remotePath.slice(-22) : remotePath}
                   </div>
                 </div>
 
@@ -908,9 +908,9 @@ Type 'help' to see available commands.`;
                 <div style={{
                   flex: '1',
                   overflow: 'auto',
-                  padding: '1rem'
+                  padding: '0.5rem'
                 }}>
-                  <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ marginBottom: '0.5rem' }}>
                     <input
                       type="file"
                       multiple
@@ -926,16 +926,16 @@ Type 'help' to see available commands.`;
                       htmlFor="file-upload"
                       style={{
                         display: 'inline-block',
-                        padding: '0.5rem 1rem',
+                        padding: '0.3rem 0.6rem',
                         backgroundColor: '#10b981',
                         color: 'white',
-                        borderRadius: '4px',
+                        borderRadius: '3px',
                         cursor: 'pointer',
-                        fontSize: '0.8rem',
-                        marginRight: '0.5rem'
+                        fontSize: '0.7rem',
+                        marginRight: '0.3rem'
                       }}
                     >
-                      ⬆️ Upload Files
+                      ⬆️ Upload
                     </label>
                     {selectedFiles.length > 0 && (
                       <button
@@ -944,82 +944,58 @@ Type 'help' to see available commands.`;
                           setSelectedFiles([]);
                         }}
                         style={{
-                          padding: '0.5rem 1rem',
+                          padding: '0.3rem 0.6rem',
                           backgroundColor: '#3b82f6',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '3px',
                           cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          marginRight: '0.5rem'
+                          fontSize: '0.7rem'
                         }}
                       >
-                        ⬇️ Download Selected ({selectedFiles.length})
+                        ⬇️ Get ({selectedFiles.length})
                       </button>
                     )}
                   </div>
 
-                  {/* File List */}
+                  {/* File List - Compact List View */}
                   <div style={{
                     border: '1px solid #e2e8f0',
                     borderRadius: '4px',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    fontSize: '0.75rem'
                   }}>
-                    {/* Header */}
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '40px 1fr 100px 120px 80px',
-                      gap: '0.5rem',
-                      padding: '0.5rem',
-                      backgroundColor: '#f1f5f9',
-                      borderBottom: '1px solid #e2e8f0',
-                      fontSize: '0.8rem',
-                      fontWeight: 'bold'
-                    }}>
-                      <div>📋</div>
-                      <div>Name</div>
-                      <div>Size</div>
-                      <div>Modified</div>
-                      <div>Actions</div>
-                    </div>
-
                     {/* Parent Directory */}
                     {remotePath !== '/' && (
                       <div
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: '40px 1fr 100px 120px 80px',
-                          gap: '0.5rem',
-                          padding: '0.5rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0.4rem',
                           borderBottom: '1px solid #e2e8f0',
                           cursor: 'pointer',
-                          fontSize: '0.8rem'
+                          backgroundColor: '#f8fafc'
                         }}
                         onClick={() => navigateToPath(remotePath.split('/').slice(0, -1).join('/') || '/')}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
                       >
-                        <div>📁</div>
-                        <div>..</div>
-                        <div>-</div>
-                        <div>-</div>
-                        <div>-</div>
+                        <span style={{ marginRight: '0.5rem' }}>📁</span>
+                        <span style={{ fontWeight: 'bold' }}>..</span>
                       </div>
                     )}
 
-                    {/* Files */}
+                    {/* Files List */}
                     {remoteFiles.map((file, index) => (
                       <div
                         key={index}
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: '40px 1fr 100px 120px 80px',
-                          gap: '0.5rem',
-                          padding: '0.5rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0.4rem',
                           borderBottom: index < remoteFiles.length - 1 ? '1px solid #e2e8f0' : 'none',
                           cursor: file.type === 'directory' ? 'pointer' : 'default',
-                          fontSize: '0.8rem',
-                          backgroundColor: selectedFiles.includes(file) ? '#dbeafe' : 'transparent'
+                          backgroundColor: selectedFiles.includes(file) ? '#dbeafe' : 'white'
                         }}
                         onClick={() => {
                           if (file.type === 'directory') {
@@ -1038,31 +1014,52 @@ Type 'help' to see available commands.`;
                         }}
                         onMouseLeave={(e) => {
                           if (!selectedFiles.includes(file)) {
-                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.backgroundColor = 'white';
                           }
                         }}
                       >
-                        <div>
-                          <input
-                            type="checkbox"
-                            checked={selectedFiles.includes(file)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              const newSelected = e.target.checked
-                                ? [...selectedFiles, file]
-                                : selectedFiles.filter(f => f !== file);
-                              setSelectedFiles(newSelected);
-                            }}
-                            style={{ cursor: 'pointer' }}
-                          />
+                        {/* Checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={selectedFiles.includes(file)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            const newSelected = e.target.checked
+                              ? [...selectedFiles, file]
+                              : selectedFiles.filter(f => f !== file);
+                            setSelectedFiles(newSelected);
+                          }}
+                          style={{ cursor: 'pointer', marginRight: '0.4rem', transform: 'scale(0.8)' }}
+                        />
+                        
+                        {/* File Icon & Name */}
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                          <span style={{ marginRight: '0.4rem', fontSize: '0.8rem' }}>
+                            {file.type === 'directory' ? '📁' : '📄'}
+                          </span>
+                          <span style={{ 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis', 
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.75rem'
+                          }}>
+                            {file.name}
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span>{file.type === 'directory' ? '📁' : '📄'}</span>
-                          <span>{file.name}</span>
+
+                        {/* File Size */}
+                        <div style={{ 
+                          minWidth: '50px', 
+                          textAlign: 'right', 
+                          marginRight: '0.4rem',
+                          fontSize: '0.65rem',
+                          color: '#6b7280'
+                        }}>
+                          {file.type === 'file' ? formatFileSize(file.size) : ''}
                         </div>
-                        <div>{file.type === 'file' ? formatFileSize(file.size) : '-'}</div>
-                        <div>{file.modified.toLocaleDateString()}</div>
-                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: '0.2rem' }}>
                           {file.type === 'file' && (
                             <button
                               onClick={(e) => {
@@ -1070,13 +1067,14 @@ Type 'help' to see available commands.`;
                                 downloadFile(file);
                               }}
                               style={{
-                                padding: '0.25rem',
+                                padding: '0.15rem',
                                 backgroundColor: '#3b82f6',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '2px',
                                 cursor: 'pointer',
-                                fontSize: '0.7rem'
+                                fontSize: '0.6rem',
+                                lineHeight: 1
                               }}
                               title="Download"
                             >
@@ -1089,13 +1087,14 @@ Type 'help' to see available commands.`;
                               deleteFile(file);
                             }}
                             style={{
-                              padding: '0.25rem',
+                              padding: '0.15rem',
                               backgroundColor: '#ef4444',
                               color: 'white',
                               border: 'none',
                               borderRadius: '2px',
                               cursor: 'pointer',
-                              fontSize: '0.7rem'
+                              fontSize: '0.6rem',
+                              lineHeight: 1
                             }}
                             title="Delete"
                           >
@@ -1111,44 +1110,46 @@ Type 'help' to see available commands.`;
                 {transfers.length > 0 && (
                   <div style={{
                     borderTop: '1px solid #e2e8f0',
-                    padding: '1rem',
+                    padding: '0.5rem',
                     backgroundColor: '#f8fafc',
-                    maxHeight: '200px',
+                    maxHeight: '120px',
                     overflow: 'auto'
                   }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', fontWeight: 'bold' }}>
-                      File Transfers
+                    <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                      Transfers
                     </h4>
                     {transfers.map((transfer) => (
                       <div
                         key={transfer.id}
                         style={{
-                          marginBottom: '0.5rem',
-                          padding: '0.5rem',
+                          marginBottom: '0.3rem',
+                          padding: '0.3rem',
                           backgroundColor: 'white',
                           border: '1px solid #e2e8f0',
-                          borderRadius: '4px',
-                          fontSize: '0.8rem'
+                          borderRadius: '3px',
+                          fontSize: '0.65rem'
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                             {transfer.type === 'upload' ? '⬆️' : '⬇️'} {transfer.name}
                           </span>
                           <span style={{
                             color: transfer.status === 'completed' ? '#10b981' : 
-                                  transfer.status === 'error' ? '#ef4444' : '#6b7280'
+                                  transfer.status === 'error' ? '#ef4444' : '#6b7280',
+                            fontSize: '0.6rem',
+                            marginLeft: '0.3rem'
                           }}>
                             {transfer.status}
                           </span>
                         </div>
                         {transfer.status === 'transferring' && (
-                          <div style={{ marginTop: '0.25rem' }}>
+                          <div style={{ marginTop: '0.2rem' }}>
                             <div style={{
                               width: '100%',
-                              height: '4px',
+                              height: '3px',
                               backgroundColor: '#e2e8f0',
-                              borderRadius: '2px',
+                              borderRadius: '1px',
                               overflow: 'hidden'
                             }}>
                               <div style={{
@@ -1158,13 +1159,13 @@ Type 'help' to see available commands.`;
                                 transition: 'width 0.3s ease'
                               }} />
                             </div>
-                            <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                              {transfer.progress}% - {formatFileSize(transfer.size)}
+                            <div style={{ fontSize: '0.6rem', color: '#6b7280', marginTop: '0.1rem' }}>
+                              {transfer.progress}%
                             </div>
                           </div>
                         )}
                         {transfer.error && (
-                          <div style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.25rem' }}>
+                          <div style={{ color: '#ef4444', fontSize: '0.6rem', marginTop: '0.2rem' }}>
                             Error: {transfer.error}
                           </div>
                         )}
