@@ -15,6 +15,7 @@ interface ConnectionProfile {
   port: number;
   username: string;
   lastUsed: Date;
+  logsDirectory?: string;
 }
 
 interface TerminalLog {
@@ -53,6 +54,7 @@ function App() {
   // Connection profiles state
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
   const [showProfiles, setShowProfiles] = useState(false);
+  const [selectedLogsDirectory, setSelectedLogsDirectory] = useState<string>('');
 
   // Load saved data on component mount
   useEffect(() => {
@@ -202,10 +204,21 @@ function App() {
     localStorage.setItem('quantumxfer-directory', dir);
   };
 
+  const saveLogsDirectoryPreference = (dir: string) => {
+    setSelectedLogsDirectory(dir);
+    localStorage.setItem('quantumxfer-logs-directory', dir);
+  };
+
   const loadDirectoryPreference = () => {
     const saved = localStorage.getItem('quantumxfer-directory');
     if (saved) {
       setCurrentDirectory(saved);
+    }
+    
+    // Load logs directory preference
+    const savedLogsDir = localStorage.getItem('quantumxfer-logs-directory');
+    if (savedLogsDir) {
+      setSelectedLogsDirectory(savedLogsDir);
     }
   };
 
@@ -242,7 +255,8 @@ function App() {
             host: config.host,
             port: config.port,
             username: config.username,
-            lastUsed: new Date()
+            lastUsed: new Date(),
+            logsDirectory: selectedLogsDirectory || undefined
           };
           const updatedProfiles = [...profiles, newProfile];
           saveProfiles(updatedProfiles);
@@ -381,6 +395,12 @@ Type 'help' to see available commands.`;
       username: profile.username,
       profileName: profile.name
     }));
+    
+    // Load logs directory from profile if available
+    if (profile.logsDirectory) {
+      setSelectedLogsDirectory(profile.logsDirectory);
+    }
+    
     setShowProfiles(false);
     
     // Update last used
@@ -409,6 +429,26 @@ Type 'help' to see available commands.`;
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const selectLogsDirectory = async () => {
+    try {
+      // Check if the File System Access API is available
+      if ('showDirectoryPicker' in window) {
+        const dirHandle = await (window as any).showDirectoryPicker();
+        const dirPath = dirHandle.name;
+        saveLogsDirectoryPreference(dirPath);
+        setNotification({ message: `Logs directory set to: ${dirPath}`, type: 'success' });
+      } else {
+        // Fallback for browsers that don't support File System Access API
+        setNotification({ message: 'Directory selection not supported in this browser. Logs will be downloaded instead.', type: 'warning' });
+      }
+    } catch (error) {
+      if ((error as any).name !== 'AbortError') {
+        console.error('Error selecting directory:', error);
+        setNotification({ message: 'Error selecting directory. Logs will be downloaded instead.', type: 'warning' });
+      }
+    }
   };
 
   // Terminal-only interface for terminal tabs
@@ -615,7 +655,12 @@ Type 'help' to see available commands.`;
             Auto-save terminal logs
           </label>
           <button
-            onClick={downloadLogs}
+            onClick={() => {
+              if (selectedLogsDirectory) {
+                setNotification({ message: `Logs directory configured: ${selectedLogsDirectory}. Downloaded logs can be manually moved there.`, type: 'info' });
+              }
+              downloadLogs();
+            }}
             style={{
               padding: '0.5rem 1rem',
               backgroundColor: '#0ea5e9',
@@ -625,8 +670,9 @@ Type 'help' to see available commands.`;
               cursor: 'pointer',
               fontSize: '0.8rem'
             }}
+            title={selectedLogsDirectory ? `Download logs (configured to save in ${selectedLogsDirectory})` : 'Download logs as file'}
           >
-            📥 Download Session Logs
+            {selectedLogsDirectory ? '� Download Logs' : '📥 Download Session Logs'}
           </button>
           <button
             onClick={() => {
@@ -705,7 +751,12 @@ Type 'help' to see available commands.`;
               🔗 New Connection
             </button>
             <button
-              onClick={downloadLogs}
+              onClick={() => {
+                if (selectedLogsDirectory) {
+                  setNotification({ message: `Logs directory configured: ${selectedLogsDirectory}. Downloaded logs can be manually moved there.`, type: 'info' });
+                }
+                downloadLogs();
+              }}
               style={{
                 padding: '1rem 2rem',
                 backgroundColor: '#0ea5e9',
@@ -716,8 +767,9 @@ Type 'help' to see available commands.`;
                 fontSize: '1rem',
                 fontWeight: '600'
               }}
+              title={selectedLogsDirectory ? `Download logs (configured to save in ${selectedLogsDirectory})` : 'Download logs as file'}
             >
-              📥 Download Logs
+              {selectedLogsDirectory ? '� Download Logs' : '📥 Download Logs'}
             </button>
           </div>
 
@@ -873,6 +925,11 @@ Type 'help' to see available commands.`;
                       <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
                         {profile.username}@{profile.host}:{profile.port} • Last used: {new Date(profile.lastUsed).toLocaleDateString()}
                       </div>
+                      {profile.logsDirectory && (
+                        <div style={{ fontSize: '0.75rem', color: '#8b5cf6', marginTop: '0.25rem' }}>
+                          📁 Logs: {profile.logsDirectory}
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
@@ -909,6 +966,78 @@ Type 'help' to see available commands.`;
               )}
             </div>
           )}
+        </div>
+
+        {/* Global Logs Directory Settings */}
+        <div style={{ backgroundColor: '#1e293b', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1.3rem' }}>Logs Directory Settings</h2>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={selectLogsDirectory}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#8b5cf6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}
+              >
+                📁 Select Directory
+              </button>
+              {selectedLogsDirectory && (
+                <button
+                  onClick={() => saveLogsDirectoryPreference('')}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          
+          <div style={{ backgroundColor: '#0f172a', padding: '1rem', borderRadius: '6px' }}>
+            {selectedLogsDirectory ? (
+              <div>
+                <div style={{ color: '#10b981', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  ✅ <strong>Logs Directory Selected:</strong>
+                </div>
+                <div style={{ color: '#f1f5f9', fontFamily: 'monospace', fontSize: '0.9rem', padding: '0.5rem', backgroundColor: '#1e293b', borderRadius: '4px' }}>
+                  {selectedLogsDirectory}
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                  • Session logs will be automatically saved to this directory
+                  <br />
+                  • New profiles will inherit this logs directory setting
+                  <br />
+                  • You can still download logs manually if needed
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                  📁 <strong>No logs directory selected</strong>
+                </div>
+                <div style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                  • Logs will be downloaded as files instead of saved to a directory
+                  <br />
+                  • Select a directory to automatically save session logs
+                  <br />
+                  • Each connection profile can have its own logs directory
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* SSH Connection Form */}
@@ -1010,6 +1139,77 @@ Type 'help' to see available commands.`;
               }}
               placeholder="My Server Connection"
             />
+          </div>
+
+          {/* Logs Directory Selection */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+              Logs Directory (Optional - Where to save session logs)
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                value={selectedLogsDirectory}
+                readOnly
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  backgroundColor: '#334155',
+                  border: '1px solid #475569',
+                  borderRadius: '4px',
+                  color: '#94a3b8',
+                  fontSize: '1rem'
+                }}
+                placeholder="Click 'Select Directory' to choose logs folder"
+              />
+              <button
+                type="button"
+                onClick={selectLogsDirectory}
+                style={{
+                  padding: '0.75rem 1rem',
+                  backgroundColor: '#8b5cf6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: '500',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                📁 Select Directory
+              </button>
+              {selectedLogsDirectory && (
+                <button
+                  type="button"
+                  onClick={() => saveLogsDirectoryPreference('')}
+                  style={{
+                    padding: '0.75rem',
+                    backgroundColor: '#6b7280',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem'
+                  }}
+                  title="Clear selected directory"
+                >
+                  ✖️
+                </button>
+              )}
+            </div>
+            {selectedLogsDirectory && (
+              <div style={{ 
+                marginTop: '0.5rem', 
+                fontSize: '0.8rem', 
+                color: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                ✅ Logs will be saved to: {selectedLogsDirectory}
+              </div>
+            )}
           </div>
 
           <button
