@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Platform info
   platform: process.platform,
   
+  // Environment info (for debugging)
+  isDev: process.env.NODE_ENV === 'development',
+  
   // Security: Only allow specific channels
   isElectron: true
 });
@@ -49,14 +52,17 @@ window.addEventListener('DOMContentLoaded', () => {
   // Override window.open to prevent unauthorized new windows and debug calls
   const originalWindowOpen = window.open;
   window.open = function(url, target, features) {
-    console.log('=== WINDOW.OPEN CALLED ===');
-    console.log('URL:', url);
-    console.log('Target:', target);
-    console.log('Features:', features);
-    console.log('Stack trace:', new Error().stack);
-    
-    // Block all window.open calls for debugging
-    console.warn('BLOCKING window.open call');
+    // Only log in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log('=== WINDOW.OPEN CALLED ===');
+      console.log('URL:', url);
+      console.log('Target:', target);
+      console.log('Features:', features);
+      console.log('Stack trace:', new Error().stack);
+      
+      // Block all window.open calls for debugging
+      console.warn('BLOCKING window.open call');
+    }
     return null;
   };
 });

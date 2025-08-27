@@ -436,20 +436,26 @@ ipcMain.handle('ssh-get-connections', () => {
 
 // Add IPC handler for writing log files
 ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
-  console.log('IPC: write-log-file called with:', {
-    logDataLength: logData ? logData.length : 0,
-    logsDirectory
-  });
+  if (isDev) {
+    console.log('IPC: write-log-file called with:', {
+      logDataLength: logData ? logData.length : 0,
+      logsDirectory
+    });
+  }
 
   try {
     if (!logsDirectory) {
-      console.log('IPC: No logs directory configured');
+      if (isDev) {
+        console.log('IPC: No logs directory configured');
+      }
       return { success: false, error: 'No logs directory configured' };
     }
 
     // Ensure the logs directory exists
     if (!fs.existsSync(logsDirectory)) {
-      console.log('IPC: Creating logs directory:', logsDirectory);
+      if (isDev) {
+        console.log('IPC: Creating logs directory:', logsDirectory);
+      }
       fs.mkdirSync(logsDirectory, { recursive: true });
     }
 
@@ -458,12 +464,16 @@ ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
     const filename = `quantumxfer-session-${timestamp}.log`;
     const filePath = path.join(logsDirectory, filename);
 
-    console.log('IPC: Writing log file to:', filePath);
+    if (isDev) {
+      console.log('IPC: Writing log file to:', filePath);
+    }
 
     // Write log data to file
     fs.writeFileSync(filePath, logData, 'utf8');
 
-    console.log(`IPC: Log file written successfully: ${filePath}`);
+    if (isDev) {
+      console.log(`IPC: Log file written successfully: ${filePath}`);
+    }
     return {
       success: true,
       filePath: filePath,
@@ -477,8 +487,10 @@ ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
 
 // Add IPC handler for opening terminal window
 ipcMain.handle('open-terminal-window', async (event, terminalData) => {
-  console.log('=== IPC: open-terminal-window called ===');
-  console.log('Terminal data received:', JSON.stringify(terminalData, null, 2));
+  if (isDev) {
+    console.log('=== IPC: open-terminal-window called ===');
+    console.log('Terminal data received:', JSON.stringify(terminalData, null, 2));
+  }
   
   try {
     const terminalWindow = new BrowserWindow({
@@ -493,7 +505,9 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
       title: `QuantumXfer Terminal - ${terminalData.config.username}@${terminalData.config.host}`
     });
     
-    console.log('Terminal window created successfully');
+    if (isDev) {
+      console.log('Terminal window created successfully');
+    }
     
     // IMPORTANT: Load the same way as main window to avoid file associations
     if (isDev) {
@@ -501,44 +515,52 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
       // In development, load from dev server with terminal hash
       await terminalWindow.loadURL('http://localhost:5189/#terminal');
     } else {
-      console.log('Production mode: loading from file');
+      if (isDev) {
+        console.log('Production mode: loading from file');
+      }
       // In production, load the built HTML file directly 
       // This should work the same as the main window
       const indexPath = path.join(__dirname, '../dist/index.html');
-      console.log('Loading index.html from:', indexPath);
+      if (isDev) {
+        console.log('Loading index.html from:', indexPath);
+      }
       await terminalWindow.loadFile(indexPath + '#terminal');
     }
     
-    console.log('Terminal window content loaded successfully');
+    if (isDev) {
+      console.log('Terminal window content loaded successfully');
+    }
     
     // Set terminal mode immediately when DOM is ready
     terminalWindow.webContents.once('dom-ready', () => {
-      console.log('Terminal window DOM ready, setting terminal mode...');
+      if (isDev) {
+        console.log('Terminal window DOM ready, setting terminal mode...');
+      }
       terminalWindow.webContents.executeJavaScript(`
-        console.log('=== TERMINAL WINDOW SETUP ===');
-        console.log('Current hash:', window.location.hash);
+        ${isDev ? "console.log('=== TERMINAL WINDOW SETUP ===');" : ""}
+        ${isDev ? "console.log('Current hash:', window.location.hash);" : ""}
         
         // Ensure hash is set to terminal
         if (window.location.hash !== '#terminal') {
-          console.log('Setting hash to #terminal');
+          ${isDev ? "console.log('Setting hash to #terminal');" : ""}
           window.location.hash = '#terminal';
         }
         
         // Set global terminal data
         const terminalData = ${JSON.stringify(terminalData)};
         window.terminalData = terminalData;
-        console.log('Terminal data set:', window.terminalData);
+        ${isDev ? "console.log('Terminal data set:', window.terminalData);" : ""}
         
         // Store in localStorage as well
         localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
-        console.log('Terminal data stored in localStorage');
+        ${isDev ? "console.log('Terminal data stored in localStorage');" : ""}
         
         // Force React to re-render by dispatching a custom event
         window.dispatchEvent(new CustomEvent('terminal-mode-ready', { 
           detail: terminalData 
         }));
         
-        console.log('=== TERMINAL WINDOW SETUP COMPLETE ===');
+        ${isDev ? "console.log('=== TERMINAL WINDOW SETUP COMPLETE ===');" : ""}
       `);
     });
     
@@ -548,13 +570,17 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
       terminalWindow.webContents.openDevTools();
     }
     
-    console.log('=== Terminal window setup complete ===');
+    if (isDev) {
+      console.log('=== Terminal window setup complete ===');
+    }
     return { success: true, message: 'Terminal window opened successfully' };
     
   } catch (error) {
-    console.error('=== ERROR: Failed to create terminal window ===');
-    console.error('Error details:', error);
-    console.error('Error stack:', error.stack);
+    if (isDev) {
+      console.error('=== ERROR: Failed to create terminal window ===');
+      console.error('Error details:', error);
+      console.error('Error stack:', error.stack);
+    }
     return { success: false, error: error.message };
   }
 });

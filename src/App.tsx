@@ -103,20 +103,26 @@ function App() {
 
   // Load saved data on component mount
   useEffect(() => {
-    console.log('=== APP USEEFFECT INIT ===');
-    console.log('Current hash:', window.location.hash);
-    console.log('Window terminalData:', (window as any).terminalData);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('=== APP USEEFFECT INIT ===');
+      console.log('Current hash:', window.location.hash);
+      console.log('Window terminalData:', (window as any).terminalData);
+    }
     
     // Check if this is a terminal tab
     if (window.location.hash === '#terminal') {
-      console.log('Terminal mode detected from hash');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Terminal mode detected from hash');
+      }
       const terminalData = localStorage.getItem('quantumxfer-terminal-data');
       const windowTerminalData = (window as any).terminalData;
       
       if (terminalData || windowTerminalData) {
         try {
           const data = windowTerminalData || JSON.parse(terminalData || '{}');
-          console.log('Loading terminal data:', data);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Loading terminal data:', data);
+          }
           setConfig(data.config);
           setSessionId(data.sessionId);
           setIsConnected(true);
@@ -341,10 +347,12 @@ function App() {
   };
 
   const handleConnect = async () => {
-    console.log('=== HANDLE CONNECT CALLED ===');
-    console.log('Config:', config);
-    console.log('electronAPI available:', !!window.electronAPI);
-    console.log('electronAPI.openTerminalWindow available:', !!window.electronAPI?.openTerminalWindow);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('=== HANDLE CONNECT CALLED ===');
+      console.log('Config:', config);
+      console.log('electronAPI available:', !!window.electronAPI);
+      console.log('electronAPI.openTerminalWindow available:', !!window.electronAPI?.openTerminalWindow);
+    }
     
     if (!config.host || !config.username || !config.password) {
       console.log('Missing connection details');
@@ -354,12 +362,16 @@ function App() {
 
     setIsConnected(false); // Reset connection state
     setNotification({ message: 'Connecting to server...', type: 'info' });
-    console.log('Starting connection attempt...');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Starting connection attempt...');
+    }
     
     try {
       // Check if we're running in Electron
       if (window.electronAPI && window.electronAPI.ssh) {
-        console.log('Using real SSH connection via Electron');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Using real SSH connection via Electron');
+        }
         // Use real SSH connection via Electron
         const result = await window.electronAPI.ssh.connect({
           host: config.host,
@@ -369,10 +381,14 @@ function App() {
           profileName: config.profileName
         });
 
-        console.log('SSH connection result:', result);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('SSH connection result:', result);
+        }
 
         if (result.success && result.connectionId) {
-          console.log('SSH connection successful, connectionId:', result.connectionId);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('SSH connection successful, connectionId:', result.connectionId);
+          }
           setIsConnected(true);
           const newSessionId = `session-${Date.now()}`;
           setSessionId(newSessionId);
@@ -454,10 +470,14 @@ function App() {
             isConnected: true
           };
           localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
-          console.log('Stored terminal data:', terminalData);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Stored terminal data:', terminalData);
+          }
           
           // Open terminal in a NEW WINDOW via IPC
-          console.log('=== OPENING TERMINAL IN NEW WINDOW ===');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('=== OPENING TERMINAL IN NEW WINDOW ===');
+          }
           console.log('Calling openTerminalWindow with data:', {
             config: config,
             sessionId: newSessionId,
@@ -637,24 +657,27 @@ function App() {
       try {
         // Get stored connection ID
         const connectionId = localStorage.getItem('quantumxfer-connection-id');
-        console.log('=== COMMAND EXECUTION DEBUG ===');
-        console.log('Connection ID from localStorage:', connectionId);
-        console.log('window.electronAPI available:', !!window.electronAPI);
-        console.log('window.electronAPI.ssh available:', !!window.electronAPI?.ssh);
-        console.log('isConnected:', isConnected);
-        console.log('All conditions:', !!(connectionId && window.electronAPI && window.electronAPI.ssh && isConnected));
-        
-        // Also show debug info in the terminal for easy visibility
-        const debugInfo = `DEBUG: connId=${connectionId}, electronAPI=${!!window.electronAPI}, ssh=${!!window.electronAPI?.ssh}, connected=${isConnected}`;
-        addTerminalLog('debug', debugInfo);
+        // Development-only debug logging
+        if (process.env.NODE_ENV === 'development') {
+          console.log('=== COMMAND EXECUTION DEBUG ===');
+          console.log('Connection ID from localStorage:', connectionId);
+          console.log('window.electronAPI available:', !!window.electronAPI);
+          console.log('window.electronAPI.ssh available:', !!window.electronAPI?.ssh);
+          console.log('isConnected:', isConnected);
+          console.log('All conditions:', !!(connectionId && window.electronAPI && window.electronAPI.ssh && isConnected));
+        }
         
         if (connectionId && window.electronAPI && window.electronAPI.ssh && isConnected) {
           // Execute real SSH command
-          console.log('=== EXECUTING REAL SSH COMMAND ===');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('=== EXECUTING REAL SSH COMMAND ===');
+          }
           addTerminalLog(cmd, '⏳ Executing...');
           
           const result = await window.electronAPI.ssh.executeCommand(parseInt(connectionId), cmd);
-          console.log('SSH command result:', result);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('SSH command result:', result);
+          }
           
           if (result.success) {
             let output = '';
