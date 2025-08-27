@@ -214,12 +214,12 @@ function App() {
         try {
           if (window.electronAPI?.writeLogFile) {
             // Note: This is async but we'll attempt it for cleanup
-            window.electronAPI.writeLogFile(logData, selectedLogsDirectory).catch(error => {
-              console.error('Failed to save logs on app close:', error);
+            window.electronAPI.writeLogFile(logData, selectedLogsDirectory).catch(() => {
+              // Silently handle cleanup errors
             });
           }
         } catch (error) {
-          console.error('Error during log cleanup:', error);
+          // Silently handle cleanup errors
         }
       }
     };
@@ -280,7 +280,7 @@ function App() {
         setProfiles(profilesWithDates);
       }
     } catch (error) {
-      console.error('Error loading profiles:', error);
+      // Silently handle profile loading errors
     }
   };
 
@@ -289,7 +289,7 @@ function App() {
       localStorage.setItem('quantumxfer-profiles', JSON.stringify(newProfiles));
       setProfiles(newProfiles);
     } catch (error) {
-      console.error('Error saving profiles:', error);
+      // Silently handle profile saving errors
     }
   };
 
@@ -314,7 +314,7 @@ function App() {
         }
       }
     } catch (error) {
-      console.error('Error loading session:', error);
+      // Silently handle session loading errors
     }
   };
 
@@ -333,33 +333,21 @@ function App() {
     const savedLogsDir = localStorage.getItem('quantumxfer-logs-directory');
     if (savedLogsDir) {
       setSelectedLogsDirectory(savedLogsDir);
-      console.log('Loaded saved logs directory:', savedLogsDir);
-    } else {
-      // Don't set a default directory - let user choose one
-      console.log('No logs directory configured - user will need to select one');
     }
   };
 
   const handleConnect = async () => {
-    console.log('=== HANDLE CONNECT CALLED ===');
-    console.log('Config:', config);
-    console.log('electronAPI available:', !!window.electronAPI);
-    console.log('electronAPI.openTerminalWindow available:', !!window.electronAPI?.openTerminalWindow);
-    
     if (!config.host || !config.username || !config.password) {
-      console.log('Missing connection details');
       setNotification({ message: 'Please fill in all connection details', type: 'error' });
       return;
     }
 
     setIsConnected(false); // Reset connection state
     setNotification({ message: 'Connecting to server...', type: 'info' });
-    console.log('Starting connection attempt...');
     
     try {
       // Check if we're running in Electron
       if (window.electronAPI && window.electronAPI.ssh) {
-        console.log('Using real SSH connection via Electron');
         // Use real SSH connection via Electron
         const result = await window.electronAPI.ssh.connect({
           host: config.host,
@@ -369,21 +357,16 @@ function App() {
           profileName: config.profileName
         });
 
-        console.log('SSH connection result:', result);
-
         if (result.success && result.connectionId) {
-          console.log('SSH connection successful, connectionId:', result.connectionId);
           setIsConnected(true);
           const newSessionId = `session-${Date.now()}`;
           setSessionId(newSessionId);
-          console.log('Session ID created:', newSessionId);
           
           // Store the real connection ID for later use
           localStorage.setItem('quantumxfer-connection-id', result.connectionId.toString());
           
           // Save as profile if profile name is provided
           if (config.profileName && config.profileName.trim()) {
-            console.log('Saving profile:', config.profileName);
             const existingProfile = profiles.find(profile => 
               profile.host === config.host && 
               profile.username === config.username && 
@@ -427,9 +410,7 @@ function App() {
           
           // Load remote directory
           try {
-            console.log('Loading remote directory...');
             const dirResult = await window.electronAPI.ssh.listDirectory(result.connectionId, '/');
-            console.log('Directory listing result:', dirResult);
             if (dirResult.success && dirResult.files) {
               setRemoteFiles(dirResult.files.map(file => ({
                 name: file.name,
@@ -443,7 +424,7 @@ function App() {
               addTerminalLog('sftp-ls', `Listed directory: ${dirResult.path}`);
             }
           } catch (dirError) {
-            console.warn('Failed to load initial directory:', dirError);
+            // Silently handle directory loading errors
           }
           
           // Store terminal data for the terminal window
@@ -454,27 +435,16 @@ function App() {
             isConnected: true
           };
           localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
-          console.log('Stored terminal data:', terminalData);
           
           // Open terminal in a NEW WINDOW via IPC
-          console.log('=== OPENING TERMINAL IN NEW WINDOW ===');
-          console.log('Calling openTerminalWindow with data:', {
-            config: config,
-            sessionId: newSessionId,
-            connectionId: result.connectionId
-          });
-          
           try {
-            const terminalWindowResult = await window.electronAPI.openTerminalWindow({
+            await window.electronAPI.openTerminalWindow({
               config: config,
               sessionId: newSessionId,
               connectionId: result.connectionId
             });
-            console.log('Terminal window result:', terminalWindowResult);
             setNotification({ message: 'Terminal window opened', type: 'success' });
           } catch (terminalError) {
-            console.error('Failed to open terminal window:', terminalError);
-            console.error('Terminal error details:', (terminalError as Error)?.message, (terminalError as Error)?.stack);
             setNotification({ message: 'Failed to open terminal window', type: 'error' });
           }
           
@@ -494,7 +464,6 @@ function App() {
         saveSession();
         
         // Open terminal in a NEW WINDOW via IPC (simulation mode)
-        console.log('=== OPENING TERMINAL IN NEW WINDOW (SIMULATION) ===');
         try {
           await window.electronAPI.openTerminalWindow({
             config: config,
@@ -542,7 +511,6 @@ function App() {
         writeAllLogsToFile();
       }
     } catch (error: any) {
-      console.error('Disconnect error:', error);
       addTerminalLog('ssh-disconnect', `❌ Disconnect error: ${error.message}`);
       setIsConnected(false);
     }
@@ -560,17 +528,8 @@ function App() {
 
     // Only write to log file if logs directory is configured
     if (selectedLogsDirectory && window.electronAPI) {
-      console.log('Writing log to file:', {
-        command,
-        selectedLogsDirectory,
-        logId: newLog.id
-      });
-
       const logEntry = `[${newLog.timestamp.toLocaleString()}] ${newLog.directory}> ${newLog.command}\n${newLog.output}\n\n`;
       writeLogToFile(logEntry);
-    } else {
-      // No logs directory selected - silently skip logging
-      console.log('Log not written - no logs directory configured');
     }
   };
 
@@ -578,18 +537,14 @@ function App() {
     // Since we already check selectedLogsDirectory in addTerminalLog,
     // this function assumes it's been validated
     if (!window.electronAPI) {
-      console.error('Electron API not available for log writing');
       return;
     }
 
     try {
-      console.log('Attempting to write log file to:', selectedLogsDirectory);
       const result = await window.electronAPI.writeLogFile(logEntry, selectedLogsDirectory);
       if (!result.success) {
-        console.error('Failed to write log file:', result.error);
         setNotification({ message: `Failed to save log: ${result.error}`, type: 'error' });
       } else {
-        console.log('Log written to file:', result.filePath);
         // Optional: Show success notification for first log file
         if (!localStorage.getItem('quantumxfer-first-log-saved')) {
           setNotification({ message: `Logs are being saved to: ${selectedLogsDirectory}`, type: 'success' });
@@ -597,7 +552,6 @@ function App() {
         }
       }
     } catch (error) {
-      console.error('Error writing log file:', error);
       setNotification({ message: 'Failed to save log to file', type: 'error' });
     }
   };
@@ -614,14 +568,11 @@ function App() {
 
       const result = await window.electronAPI.writeLogFile(logData, selectedLogsDirectory);
       if (!result.success) {
-        console.error('Failed to write all logs to file:', result.error);
         setNotification({ message: `Failed to save logs: ${result.error}`, type: 'error' });
       } else {
-        console.log('All logs written to file:', result.filePath);
         setNotification({ message: `Logs saved to: ${result.filename}`, type: 'success' });
       }
     } catch (error) {
-      console.error('Error writing all logs to file:', error);
       setNotification({ message: 'Failed to save logs to file', type: 'error' });
     }
   };
@@ -637,24 +588,12 @@ function App() {
       try {
         // Get stored connection ID
         const connectionId = localStorage.getItem('quantumxfer-connection-id');
-        console.log('=== COMMAND EXECUTION DEBUG ===');
-        console.log('Connection ID from localStorage:', connectionId);
-        console.log('window.electronAPI available:', !!window.electronAPI);
-        console.log('window.electronAPI.ssh available:', !!window.electronAPI?.ssh);
-        console.log('isConnected:', isConnected);
-        console.log('All conditions:', !!(connectionId && window.electronAPI && window.electronAPI.ssh && isConnected));
-        
-        // Also show debug info in the terminal for easy visibility
-        const debugInfo = `DEBUG: connId=${connectionId}, electronAPI=${!!window.electronAPI}, ssh=${!!window.electronAPI?.ssh}, connected=${isConnected}`;
-        addTerminalLog('debug', debugInfo);
         
         if (connectionId && window.electronAPI && window.electronAPI.ssh && isConnected) {
           // Execute real SSH command
-          console.log('=== EXECUTING REAL SSH COMMAND ===');
           addTerminalLog(cmd, '⏳ Executing...');
           
           const result = await window.electronAPI.ssh.executeCommand(parseInt(connectionId), cmd);
-          console.log('SSH command result:', result);
           
           if (result.success) {
             let output = '';
@@ -731,7 +670,6 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
         setCurrentCommand('');
         
       } catch (error: any) {
-        console.error('Command execution error:', error);
         addTerminalLog(cmd, `❌ Error: ${error.message}`);
         setCurrentCommand('');
       }
@@ -828,7 +766,6 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
         setNotification({ message: `Logs directory set to: ${defaultLogsDir}`, type: 'success' });
       }
     } catch (error) {
-      console.error('Error selecting directory:', error);
       // Fallback: Use a default logs directory
       const defaultLogsDir = 'quantumxfer-logs';
       saveLogsDirectoryPreference(defaultLogsDir);
@@ -942,10 +879,7 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
       setNotification({ message: `Uploaded ${filesToUpload.length} file(s)`, type: 'success' });
       loadRemoteDirectory(remotePath);
     } catch (error) {
-      if ((error as any).name !== 'AbortError') {
-        console.error('Error selecting files:', error);
-        setNotification({ message: 'Error selecting files for upload', type: 'warning' });
-      }
+      setNotification({ message: 'Error selecting files for upload', type: 'warning' });
     }
   };
 

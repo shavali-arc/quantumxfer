@@ -25,8 +25,6 @@ class SSHService {
       const currentConnectionId = ++this.connectionId;
 
       conn.on('ready', () => {
-        console.log(`SSH Connection ${currentConnectionId} ready`);
-        
         // Store the connection
         this.connections.set(currentConnectionId, {
           client: conn,
@@ -48,19 +46,15 @@ class SSHService {
       });
 
       conn.on('banner', (message) => {
-        console.log(`SSH Connection ${currentConnectionId} banner:`, message);
       });
 
       conn.on('greeting', (message) => {
-        console.log(`SSH Connection ${currentConnectionId} greeting:`, message);
       });
 
       conn.on('handshake', (negotiated) => {
-        console.log(`SSH Connection ${currentConnectionId} handshake completed:`, negotiated);
       });
 
       conn.on('error', (err) => {
-        console.error(`SSH Connection ${currentConnectionId} error:`, err.message);
         reject({
           success: false,
           error: err.message,
@@ -69,12 +63,10 @@ class SSHService {
       });
 
       conn.on('end', () => {
-        console.log(`SSH Connection ${currentConnectionId} ended`);
         this.connections.delete(currentConnectionId);
       });
 
       conn.on('close', () => {
-        console.log(`SSH Connection ${currentConnectionId} closed`);
         this.connections.delete(currentConnectionId);
       });
 
@@ -117,14 +109,6 @@ class SSHService {
 
       // Attempt connection
       try {
-        console.log('SSH connection attempt with options:', {
-          host: connectOptions.host,
-          port: connectOptions.port,
-          username: connectOptions.username,
-          hasPassword: !!connectOptions.password,
-          hasPrivateKey: !!connectOptions.privateKey,
-          readyTimeout: connectOptions.readyTimeout
-        });
         conn.connect(connectOptions);
       } catch (err) {
         reject({

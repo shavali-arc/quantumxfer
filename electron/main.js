@@ -135,7 +135,7 @@ function createMainWindow() {
 
   // Load the app
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5189');
+    mainWindow.loadURL('http://localhost:5188');
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
@@ -364,10 +364,8 @@ ipcMain.handle('show-open-dialog', async (event, options) => {
 ipcMain.handle('ssh-connect', async (event, config) => {
   try {
     const result = await sshService.connect(config);
-    console.log('SSH Connection successful:', result);
     return result;
   } catch (error) {
-    console.error('SSH Connection failed:', error);
     return error;
   }
 });
@@ -377,7 +375,6 @@ ipcMain.handle('ssh-execute-command', async (event, connectionId, command) => {
     const result = await sshService.executeCommand(connectionId, command);
     return result;
   } catch (error) {
-    console.error('SSH Command execution failed:', error);
     return error;
   }
 });
@@ -387,7 +384,6 @@ ipcMain.handle('ssh-list-directory', async (event, connectionId, remotePath) => 
     const result = await sshService.listDirectory(connectionId, remotePath);
     return result;
   } catch (error) {
-    console.error('SSH Directory listing failed:', error);
     return error;
   }
 });
@@ -397,7 +393,6 @@ ipcMain.handle('ssh-download-file', async (event, connectionId, remotePath, loca
     const result = await sshService.downloadFile(connectionId, remotePath, localPath);
     return result;
   } catch (error) {
-    console.error('SSH File download failed:', error);
     return error;
   }
 });
@@ -407,7 +402,6 @@ ipcMain.handle('ssh-upload-file', async (event, connectionId, localPath, remoteP
     const result = await sshService.uploadFile(connectionId, localPath, remotePath);
     return result;
   } catch (error) {
-    console.error('SSH File upload failed:', error);
     return error;
   }
 });
@@ -417,7 +411,6 @@ ipcMain.handle('ssh-disconnect', (event, connectionId) => {
     const result = sshService.disconnect(connectionId);
     return result;
   } catch (error) {
-    console.error('SSH Disconnect failed:', error);
     return { success: false, error: error.message };
   }
 });
@@ -429,27 +422,19 @@ ipcMain.handle('ssh-get-connections', () => {
       connections: sshService.getActiveConnections()
     };
   } catch (error) {
-    console.error('Get SSH connections failed:', error);
     return { success: false, error: error.message };
   }
 });
 
 // Add IPC handler for writing log files
 ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
-  console.log('IPC: write-log-file called with:', {
-    logDataLength: logData ? logData.length : 0,
-    logsDirectory
-  });
-
   try {
     if (!logsDirectory) {
-      console.log('IPC: No logs directory configured');
       return { success: false, error: 'No logs directory configured' };
     }
 
     // Ensure the logs directory exists
     if (!fs.existsSync(logsDirectory)) {
-      console.log('IPC: Creating logs directory:', logsDirectory);
       fs.mkdirSync(logsDirectory, { recursive: true });
     }
 
@@ -458,28 +443,21 @@ ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
     const filename = `quantumxfer-session-${timestamp}.log`;
     const filePath = path.join(logsDirectory, filename);
 
-    console.log('IPC: Writing log file to:', filePath);
-
     // Write log data to file
     fs.writeFileSync(filePath, logData, 'utf8');
 
-    console.log(`IPC: Log file written successfully: ${filePath}`);
     return {
       success: true,
       filePath: filePath,
       filename: filename
     };
   } catch (error) {
-    console.error('IPC: Write log file failed:', error);
     return { success: false, error: error.message };
   }
 });
 
 // Add IPC handler for opening terminal window
 ipcMain.handle('open-terminal-window', async (event, terminalData) => {
-  console.log('=== IPC: open-terminal-window called ===');
-  console.log('Terminal data received:', JSON.stringify(terminalData, null, 2));
-  
   try {
     const terminalWindow = new BrowserWindow({
       width: 1200,
@@ -493,68 +471,47 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
       title: `QuantumXfer Terminal - ${terminalData.config.username}@${terminalData.config.host}`
     });
     
-    console.log('Terminal window created successfully');
-    
     // IMPORTANT: Load the same way as main window to avoid file associations
     if (isDev) {
-      console.log('Development mode: loading from dev server');
       // In development, load from dev server with terminal hash
-      await terminalWindow.loadURL('http://localhost:5189/#terminal');
+      await terminalWindow.loadURL('http://localhost:5188/#terminal');
     } else {
-      console.log('Production mode: loading from file');
       // In production, load the built HTML file directly 
       // This should work the same as the main window
       const indexPath = path.join(__dirname, '../dist/index.html');
-      console.log('Loading index.html from:', indexPath);
       await terminalWindow.loadFile(indexPath + '#terminal');
     }
     
-    console.log('Terminal window content loaded successfully');
-    
     // Set terminal mode immediately when DOM is ready
     terminalWindow.webContents.once('dom-ready', () => {
-      console.log('Terminal window DOM ready, setting terminal mode...');
       terminalWindow.webContents.executeJavaScript(`
-        console.log('=== TERMINAL WINDOW SETUP ===');
-        console.log('Current hash:', window.location.hash);
-        
         // Ensure hash is set to terminal
         if (window.location.hash !== '#terminal') {
-          console.log('Setting hash to #terminal');
           window.location.hash = '#terminal';
         }
         
         // Set global terminal data
         const terminalData = ${JSON.stringify(terminalData)};
         window.terminalData = terminalData;
-        console.log('Terminal data set:', window.terminalData);
         
         // Store in localStorage as well
         localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
-        console.log('Terminal data stored in localStorage');
         
         // Force React to re-render by dispatching a custom event
         window.dispatchEvent(new CustomEvent('terminal-mode-ready', { 
           detail: terminalData 
         }));
-        
-        console.log('=== TERMINAL WINDOW SETUP COMPLETE ===');
       `);
     });
     
     // Open DevTools in development for debugging
     if (isDev) {
-      console.log('Opening DevTools for terminal window');
       terminalWindow.webContents.openDevTools();
     }
     
-    console.log('=== Terminal window setup complete ===');
     return { success: true, message: 'Terminal window opened successfully' };
     
   } catch (error) {
-    console.error('=== ERROR: Failed to create terminal window ===');
-    console.error('Error details:', error);
-    console.error('Error stack:', error.stack);
     return { success: false, error: error.message };
   }
 });
@@ -562,23 +519,18 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
 // Security: Handle new window creation - Only block external URLs
 app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    console.log('setWindowOpenHandler called with URL:', url);
-    
     // Allow internal app navigation (file:// URLs with our app path)
     if (url.startsWith('file://') && url.includes('index.html')) {
-      console.log('ALLOWING internal app navigation');
       return { action: 'allow' };
     }
     
     // Block external URLs (http://, https://, etc.)
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      console.log('BLOCKING external URL, opening in system browser');
       shell.openExternal(url);
       return { action: 'deny' };
     }
     
     // Allow other internal URLs
-    console.log('ALLOWING internal URL');
     return { action: 'allow' };
   });
 });
