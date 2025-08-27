@@ -54,3 +54,6 @@ dist-packager
 # Release packages (large binary files)
 # Note: Consider using Git LFS for large binary files
 dist-packager/*.zip
+
+# GitHub directory
+.github/

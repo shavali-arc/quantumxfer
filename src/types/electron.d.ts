@@ -21,6 +21,9 @@ export interface ElectronAPI {
     getConnections: () => Promise<SSHConnectionsResult>;
   };
   
+  // File system operations
+  writeLogFile: (logData: string, logsDirectory: string) => Promise<{ success: boolean; filePath?: string; filename?: string; error?: string }>;
+  
   // Menu actions
   onMenuNewConnection: (callback: () => void) => void;
   onMenuLogsDirectory: (callback: () => void) => void;

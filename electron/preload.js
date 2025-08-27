@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
   showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
   
+  // File system operations
+  writeLogFile: (logData, logsDirectory) => ipcRenderer.invoke('write-log-file', logData, logsDirectory),
+  
   // Terminal window
   openTerminalWindow: (terminalData) => ipcRenderer.invoke('open-terminal-window', terminalData),
   

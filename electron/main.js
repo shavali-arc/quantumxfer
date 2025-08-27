@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -429,6 +430,47 @@ ipcMain.handle('ssh-get-connections', () => {
     };
   } catch (error) {
     console.error('Get SSH connections failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Add IPC handler for writing log files
+ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
+  console.log('IPC: write-log-file called with:', {
+    logDataLength: logData ? logData.length : 0,
+    logsDirectory
+  });
+
+  try {
+    if (!logsDirectory) {
+      console.log('IPC: No logs directory configured');
+      return { success: false, error: 'No logs directory configured' };
+    }
+
+    // Ensure the logs directory exists
+    if (!fs.existsSync(logsDirectory)) {
+      console.log('IPC: Creating logs directory:', logsDirectory);
+      fs.mkdirSync(logsDirectory, { recursive: true });
+    }
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `quantumxfer-session-${timestamp}.log`;
+    const filePath = path.join(logsDirectory, filename);
+
+    console.log('IPC: Writing log file to:', filePath);
+
+    // Write log data to file
+    fs.writeFileSync(filePath, logData, 'utf8');
+
+    console.log(`IPC: Log file written successfully: ${filePath}`);
+    return {
+      success: true,
+      filePath: filePath,
+      filename: filename
+    };
+  } catch (error) {
+    console.error('IPC: Write log file failed:', error);
     return { success: false, error: error.message };
   }
 });

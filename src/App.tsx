@@ -201,6 +201,30 @@ function App() {
     }
   }, [notification]);
 
+  // Cleanup: Save logs when component unmounts (app closes)
+  useEffect(() => {
+    return () => {
+      if (selectedLogsDirectory && terminalLogs.length > 0) {
+        // Use a synchronous approach for cleanup since async operations might not complete
+        const logData = terminalLogs.map(log =>
+          `[${log.timestamp.toLocaleString()}] ${log.directory}> ${log.command}\n${log.output}\n`
+        ).join('\n');
+
+        // Try to save logs synchronously if possible
+        try {
+          if (window.electronAPI?.writeLogFile) {
+            // Note: This is async but we'll attempt it for cleanup
+            window.electronAPI.writeLogFile(logData, selectedLogsDirectory).catch(error => {
+              console.error('Failed to save logs on app close:', error);
+            });
+          }
+        } catch (error) {
+          console.error('Error during log cleanup:', error);
+        }
+      }
+    };
+  }, [selectedLogsDirectory, terminalLogs]);
+
   // Load command history for current profile when connected
   useEffect(() => {
     if (isConnected && config.profileName) {
@@ -304,11 +328,15 @@ function App() {
     if (saved) {
       setCurrentDirectory(saved);
     }
-    
+
     // Load logs directory preference
     const savedLogsDir = localStorage.getItem('quantumxfer-logs-directory');
     if (savedLogsDir) {
       setSelectedLogsDirectory(savedLogsDir);
+      console.log('Loaded saved logs directory:', savedLogsDir);
+    } else {
+      // Don't set a default directory - let user choose one
+      console.log('No logs directory configured - user will need to select one');
     }
   };
 
@@ -391,6 +419,11 @@ function App() {
           addTerminalLog('ssh-connect', `✅ Successfully connected to ${config.username}@${config.host}:${config.port}`);
           setNotification({ message: `Connected to ${result.serverInfo?.host}`, type: 'success' });
           saveSession();
+
+          // Write all existing logs to file if logs directory is configured
+          if (selectedLogsDirectory && terminalLogs.length > 0) {
+            writeAllLogsToFile();
+          }
           
           // Load remote directory
           try {
@@ -503,6 +536,11 @@ function App() {
       setIsConnected(false);
       setRemoteFiles([]);
       setRemotePath('/');
+
+      // Automatically save logs to file when disconnecting
+      if (selectedLogsDirectory && terminalLogs.length > 0) {
+        writeAllLogsToFile();
+      }
     } catch (error: any) {
       console.error('Disconnect error:', error);
       addTerminalLog('ssh-disconnect', `❌ Disconnect error: ${error.message}`);
@@ -519,6 +557,73 @@ function App() {
       directory: currentDirectory
     };
     setTerminalLogs(prev => [...prev, newLog]);
+
+    // Only write to log file if logs directory is configured
+    if (selectedLogsDirectory && window.electronAPI) {
+      console.log('Writing log to file:', {
+        command,
+        selectedLogsDirectory,
+        logId: newLog.id
+      });
+
+      const logEntry = `[${newLog.timestamp.toLocaleString()}] ${newLog.directory}> ${newLog.command}\n${newLog.output}\n\n`;
+      writeLogToFile(logEntry);
+    } else {
+      // No logs directory selected - silently skip logging
+      console.log('Log not written - no logs directory configured');
+    }
+  };
+
+  const writeLogToFile = async (logEntry: string) => {
+    // Since we already check selectedLogsDirectory in addTerminalLog,
+    // this function assumes it's been validated
+    if (!window.electronAPI) {
+      console.error('Electron API not available for log writing');
+      return;
+    }
+
+    try {
+      console.log('Attempting to write log file to:', selectedLogsDirectory);
+      const result = await window.electronAPI.writeLogFile(logEntry, selectedLogsDirectory);
+      if (!result.success) {
+        console.error('Failed to write log file:', result.error);
+        setNotification({ message: `Failed to save log: ${result.error}`, type: 'error' });
+      } else {
+        console.log('Log written to file:', result.filePath);
+        // Optional: Show success notification for first log file
+        if (!localStorage.getItem('quantumxfer-first-log-saved')) {
+          setNotification({ message: `Logs are being saved to: ${selectedLogsDirectory}`, type: 'success' });
+          localStorage.setItem('quantumxfer-first-log-saved', 'true');
+        }
+      }
+    } catch (error) {
+      console.error('Error writing log file:', error);
+      setNotification({ message: 'Failed to save log to file', type: 'error' });
+    }
+  };
+
+  const writeAllLogsToFile = async () => {
+    if (!selectedLogsDirectory || !window.electronAPI?.writeLogFile || terminalLogs.length === 0) {
+      return;
+    }
+
+    try {
+      const logData = terminalLogs.map(log =>
+        `[${log.timestamp.toLocaleString()}] ${log.directory}> ${log.command}\n${log.output}\n`
+      ).join('\n');
+
+      const result = await window.electronAPI.writeLogFile(logData, selectedLogsDirectory);
+      if (!result.success) {
+        console.error('Failed to write all logs to file:', result.error);
+        setNotification({ message: `Failed to save logs: ${result.error}`, type: 'error' });
+      } else {
+        console.log('All logs written to file:', result.filePath);
+        setNotification({ message: `Logs saved to: ${result.filename}`, type: 'success' });
+      }
+    } catch (error) {
+      console.error('Error writing all logs to file:', error);
+      setNotification({ message: 'Failed to save logs to file', type: 'error' });
+    }
   };
 
   const executeCommand = async () => {
@@ -704,21 +809,30 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
 
   const selectLogsDirectory = async () => {
     try {
-      // Check if the File System Access API is available
-      if ('showDirectoryPicker' in window) {
-        const dirHandle = await (window as any).showDirectoryPicker();
-        const dirPath = dirHandle.name;
-        saveLogsDirectoryPreference(dirPath);
-        setNotification({ message: `Logs directory set to: ${dirPath}`, type: 'success' });
+      // Use Electron's dialog API to select directory
+      if (window.electronAPI?.showOpenDialog) {
+        const result = await window.electronAPI.showOpenDialog({
+          properties: ['openDirectory'],
+          title: 'Select Logs Directory'
+        });
+
+        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+          const selectedPath = result.filePaths[0];
+          saveLogsDirectoryPreference(selectedPath);
+          setNotification({ message: `Logs directory set to: ${selectedPath}`, type: 'success' });
+        }
       } else {
-        // Fallback for browsers that don't support File System Access API
-        setNotification({ message: 'Directory selection not supported in this browser. Logs will be downloaded instead.', type: 'warning' });
+        // Fallback: Use a default logs directory
+        const defaultLogsDir = 'quantumxfer-logs';
+        saveLogsDirectoryPreference(defaultLogsDir);
+        setNotification({ message: `Logs directory set to: ${defaultLogsDir}`, type: 'success' });
       }
     } catch (error) {
-      if ((error as any).name !== 'AbortError') {
-        console.error('Error selecting directory:', error);
-        setNotification({ message: 'Error selecting directory. Logs will be downloaded instead.', type: 'warning' });
-      }
+      console.error('Error selecting directory:', error);
+      // Fallback: Use a default logs directory
+      const defaultLogsDir = 'quantumxfer-logs';
+      saveLogsDirectoryPreference(defaultLogsDir);
+      setNotification({ message: `Using default logs directory: ${defaultLogsDir}`, type: 'info' });
     }
   };
 
@@ -1457,9 +1571,12 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
           <button
             onClick={() => {
               if (selectedLogsDirectory) {
-                setNotification({ message: `Logs directory configured: ${selectedLogsDirectory}. Downloaded logs can be manually moved there.`, type: 'info' });
+                // Automatically save logs to configured directory
+                writeAllLogsToFile();
+              } else {
+                // Fallback to manual download
+                downloadLogs();
               }
-              downloadLogs();
             }}
             style={{
               padding: '0.5rem 1rem',
@@ -1470,9 +1587,9 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
               cursor: 'pointer',
               fontSize: '0.8rem'
             }}
-            title={selectedLogsDirectory ? `Download logs (configured to save in ${selectedLogsDirectory})` : 'Download logs as file'}
+            title={selectedLogsDirectory ? 'Save logs to configured directory' : 'Select a logs directory first to enable automatic saving'}
           >
-            {selectedLogsDirectory ? '� Download Logs' : '📥 Download Session Logs'}
+            {selectedLogsDirectory ? '💾 Save Logs' : '📥 Download Logs'}
           </button>
           <button
             onClick={() => {
@@ -1590,9 +1707,12 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
             <button
               onClick={() => {
                 if (selectedLogsDirectory) {
-                  setNotification({ message: `Logs directory configured: ${selectedLogsDirectory}. Downloaded logs can be manually moved there.`, type: 'info' });
+                  // Automatically save logs to configured directory
+                  writeAllLogsToFile();
+                } else {
+                  // Fallback to manual download
+                  downloadLogs();
                 }
-                downloadLogs();
               }}
               style={{
                 padding: '1rem 2rem',
@@ -1604,9 +1724,9 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
                 fontSize: '1rem',
                 fontWeight: '600'
               }}
-              title={selectedLogsDirectory ? `Download logs (configured to save in ${selectedLogsDirectory})` : 'Download logs as file'}
+              title={selectedLogsDirectory ? 'Save logs to configured directory' : 'Select a logs directory first to enable automatic saving'}
             >
-              {selectedLogsDirectory ? '� Download Logs' : '📥 Download Logs'}
+              {selectedLogsDirectory ? '💾 Save Logs' : '📥 Download Logs'}
             </button>
           </div>
 
@@ -2020,8 +2140,21 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
                   fontSize: '0.9rem'
                 }}
               >
-                📁 Select Directory
+                {selectedLogsDirectory ? '📁 Change Directory' : '📁 Select Directory'}
               </button>
+              <div style={{
+                fontSize: '0.8rem',
+                color: selectedLogsDirectory ? '#10b981' : '#f59e0b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem'
+              }}>
+                {selectedLogsDirectory ? (
+                  <>✅ Logs will be saved to: {selectedLogsDirectory}</>
+                ) : (
+                  <>⚠️ No directory selected - logs won't be saved</>
+                )}
+              </div>
               {selectedLogsDirectory && (
                 <button
                   onClick={() => saveLogsDirectoryPreference('')}
@@ -2124,7 +2257,15 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
               <input
                 type="text"
                 value={config.host}
-                onChange={(e) => setConfig(prev => ({ ...prev, host: e.target.value }))}
+                onChange={(e) => setConfig(prev => {
+                  const newHost = e.target.value;
+                  const newUsername = prev.username;
+                  return { 
+                    ...prev, 
+                    host: newHost,
+                    profileName: newUsername && newHost ? `${newUsername}@${newHost}` : prev.profileName
+                  };
+                })}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -2163,7 +2304,15 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
               <input
                 type="text"
                 value={config.username}
-                onChange={(e) => setConfig(prev => ({ ...prev, username: e.target.value }))}
+                onChange={(e) => setConfig(prev => {
+                  const newUsername = e.target.value;
+                  const newHost = prev.host;
+                  return { 
+                    ...prev, 
+                    username: newUsername,
+                    profileName: newUsername && newHost ? `${newUsername}@${newHost}` : prev.profileName
+                  };
+                })}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -2251,8 +2400,22 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
                   whiteSpace: 'nowrap'
                 }}
               >
-                📁 Select Directory
+                {selectedLogsDirectory ? '📁 Change Directory' : '📁 Select Directory'}
               </button>
+              <div style={{
+                fontSize: '0.8rem',
+                color: selectedLogsDirectory ? '#10b981' : '#f59e0b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                marginTop: '0.5rem'
+              }}>
+                {selectedLogsDirectory ? (
+                  <>✅ Logs will be saved to: {selectedLogsDirectory}</>
+                ) : (
+                  <>⚠️ No directory selected - logs won't be saved</>
+                )}
+              </div>
               {selectedLogsDirectory && (
                 <button
                   type="button"
