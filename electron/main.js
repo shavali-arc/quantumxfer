@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, safeStorage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
@@ -122,6 +122,7 @@ function createMainWindow() {
     minWidth: 1000,
     minHeight: 700,
     show: false,
+    title: 'QuantumXfer App',
     icon: path.join(__dirname, '../assets/icon.png'),
     webPreferences: {
       nodeIntegration: false,
@@ -456,8 +457,195 @@ ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
   }
 });
 
+// Helper function to encrypt passwords in profiles
+function encryptProfiles(profiles) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('safeStorage encryption not available, passwords will be stored in plain text');
+    console.warn('This may pose a security risk. Consider using a system with encryption support.');
+    return profiles;
+  }
+
+  return profiles.map(profile => {
+    if (profile.password) {
+      try {
+        const encrypted = safeStorage.encryptString(profile.password);
+        return {
+          ...profile,
+          password: encrypted.toString('base64') // Store as base64 string
+        };
+      } catch (error) {
+        console.error(`Failed to encrypt password for profile ${profile.name}:`, error);
+        return profile;
+      }
+    }
+    return profile;
+  });
+}
+
+// Helper function to decrypt passwords in profiles
+function decryptProfiles(profiles) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('safeStorage encryption not available, passwords may be stored in plain text');
+    console.warn('This may pose a security risk. Consider using a system with encryption support.');
+    return profiles;
+  }
+
+  return profiles.map(profile => {
+    if (profile.password) {
+      try {
+        const encryptedBuffer = Buffer.from(profile.password, 'base64');
+        const decrypted = safeStorage.decryptString(encryptedBuffer);
+        return {
+          ...profile,
+          password: decrypted
+        };
+      } catch (error) {
+        console.error(`Failed to decrypt password for profile ${profile.name}:`, error);
+        return profile;
+      }
+    }
+    return profile;
+  });
+}
+ipcMain.handle('save-profiles-to-file', async (event, profiles) => {
+  console.log('=== IPC: save-profiles-to-file called ===');
+  try {
+    const userDataPath = app.getPath('userData');
+    const profilesDir = path.join(userDataPath, 'profiles');
+    
+    // Ensure profiles directory exists
+    if (!fs.existsSync(profilesDir)) {
+      fs.mkdirSync(profilesDir, { recursive: true });
+    }
+    
+    // Encrypt passwords before saving
+    const encryptedProfiles = encryptProfiles(profiles);
+    
+    const profilesPath = path.join(profilesDir, 'connection-profiles.json');
+    fs.writeFileSync(profilesPath, JSON.stringify(encryptedProfiles, null, 2), 'utf8');
+    
+    return { success: true, filePath: profilesPath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('load-profiles-from-file', async () => {
+  console.log('=== IPC: load-profiles-from-file called ===');
+  try {
+    const userDataPath = app.getPath('userData');
+    const profilesPath = path.join(userDataPath, 'profiles', 'connection-profiles.json');
+    
+    if (!fs.existsSync(profilesPath)) {
+      return { success: true, profiles: [] };
+    }
+    
+    const profilesData = fs.readFileSync(profilesPath, 'utf8');
+    const encryptedProfiles = JSON.parse(profilesData);
+    
+    // Decrypt passwords before returning
+    const decryptedProfiles = decryptProfiles(encryptedProfiles);
+    
+    return { success: true, profiles: decryptedProfiles };
+  } catch (error) {
+    return { success: false, error: error.message, profiles: [] };
+  }
+});
+
+
+// Global Command History Feature:
+// - Single shared command history across all profiles and terminal windows
+// - Stored in: %APPDATA%\quantumxfer\command-history\global-command-history.json
+// - Maximum 500 commands to prevent excessive storage
+// - All commands from all connections are stored in one global history
+// Add IPC handlers for centralized command history
+ipcMain.handle('save-command-history', async (event, data) => {
+  console.log('=== IPC: save-command-history called ===');
+  try {
+    const { commands } = data;
+    const userDataPath = app.getPath('userData');
+    const historyDir = path.join(userDataPath, 'command-history');
+
+    // Ensure command history directory exists
+    if (!fs.existsSync(historyDir)) {
+      fs.mkdirSync(historyDir, { recursive: true });
+    }
+
+    const historyPath = path.join(historyDir, 'global-command-history.json');
+    const historyData = {
+      commands: commands.slice(-500), // Keep only last 500 commands globally
+      lastUpdated: new Date().toISOString()
+    };
+
+    fs.writeFileSync(historyPath, JSON.stringify(historyData, null, 2), 'utf8');
+    console.log(`Global command history saved: ${commands.length} commands`);
+
+    return { success: true, filePath: historyPath };
+  } catch (error) {
+    console.error('Error saving global command history:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('load-command-history', async () => {
+  console.log('=== IPC: load-command-history called ===');
+  try {
+    const userDataPath = app.getPath('userData');
+    const historyPath = path.join(userDataPath, 'command-history', 'global-command-history.json');
+
+    if (!fs.existsSync(historyPath)) {
+      console.log('No global command history found');
+      return { success: true, commands: [] };
+    }
+
+    const historyData = fs.readFileSync(historyPath, 'utf8');
+    const parsed = JSON.parse(historyData);
+
+    console.log(`Loaded global command history: ${parsed.commands.length} commands`);
+    return { success: true, commands: parsed.commands };
+  } catch (error) {
+    console.error('Error loading global command history:', error);
+    return { success: false, error: error.message, commands: [] };
+  }
+});
+
+ipcMain.handle('append-command-history', async (event, data) => {
+  console.log('=== IPC: append-command-history called ===');
+  try {
+    const { command } = data;
+    const userDataPath = app.getPath('userData');
+    const historyPath = path.join(userDataPath, 'command-history', 'global-command-history.json');
+
+    let commands = [];
+    if (fs.existsSync(historyPath)) {
+      const historyData = fs.readFileSync(historyPath, 'utf8');
+      const parsed = JSON.parse(historyData);
+      commands = parsed.commands || [];
+    }
+
+    // Add new command and keep only last 500
+    commands = [...commands, command].slice(-500);
+
+    const historyData = {
+      commands,
+      lastUpdated: new Date().toISOString()
+    };
+
+    fs.writeFileSync(historyPath, JSON.stringify(historyData, null, 2), 'utf8');
+    console.log(`Command appended to global history: "${command}"`);
+
+    return { success: true, commands };
+  } catch (error) {
+    console.error('Error appending command to global history:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Add IPC handler for opening terminal window
 ipcMain.handle('open-terminal-window', async (event, terminalData) => {
+  console.log('=== IPC: open-terminal-window called ===');
+  console.log('Terminal data received:', JSON.stringify(terminalData, null, 2));
+
   try {
     const terminalWindow = new BrowserWindow({
       width: 1200,
@@ -468,50 +656,82 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
         preload: path.join(__dirname, 'preload.js')
       },
       icon: path.join(__dirname, '../assets/icon.ico'),
-      title: `QuantumXfer Terminal - ${terminalData.config.username}@${terminalData.config.host}`
+      title: `QuantumXfer Terminal - ${terminalData.config.username}@${terminalData.config.host}`,
+      show: true // Ensure window is shown
     });
-    
+
+    console.log('Terminal window created successfully');
+
     // IMPORTANT: Load the same way as main window to avoid file associations
     if (isDev) {
+      console.log('Development mode: loading from dev server');
       // In development, load from dev server with terminal hash
-      await terminalWindow.loadURL('http://localhost:5188/#terminal');
+      const terminalUrl = 'http://localhost:5188/#terminal';
+      console.log('Loading terminal URL:', terminalUrl);
+      await terminalWindow.loadURL(terminalUrl);
+      console.log('Terminal URL loaded successfully');
     } else {
-      // In production, load the built HTML file directly 
+      console.log('Production mode: loading from file');
+      // In production, load the built HTML file directly
       // This should work the same as the main window
       const indexPath = path.join(__dirname, '../dist/index.html');
+      console.log('Loading index.html from:', indexPath);
       await terminalWindow.loadFile(indexPath + '#terminal');
-    }
-    
+      console.log('Terminal file loaded successfully');
+    }    console.log('Terminal window content loaded successfully');
+
     // Set terminal mode immediately when DOM is ready
     terminalWindow.webContents.once('dom-ready', () => {
+      console.log('Terminal window DOM ready, setting terminal mode...');
       terminalWindow.webContents.executeJavaScript(`
         // Ensure hash is set to terminal
         if (window.location.hash !== '#terminal') {
           window.location.hash = '#terminal';
         }
-        
+
         // Set global terminal data
         const terminalData = ${JSON.stringify(terminalData)};
         window.terminalData = terminalData;
-        
+
         // Store in localStorage as well
         localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
-        
+
         // Force React to re-render by dispatching a custom event
-        window.dispatchEvent(new CustomEvent('terminal-mode-ready', { 
-          detail: terminalData 
+        window.dispatchEvent(new CustomEvent('terminal-mode-ready', {
+          detail: terminalData
         }));
+
+        console.log('=== TERMINAL WINDOW SETUP COMPLETE ===');
       `);
     });
-    
-    // Open DevTools in development for debugging
-    if (isDev) {
-      terminalWindow.webContents.openDevTools();
-    }
-    
-    return { success: true, message: 'Terminal window opened successfully' };
-    
-  } catch (error) {
+
+    // Handle window close
+    terminalWindow.on('closed', () => {
+      console.log('Terminal window closed');
+      // Note: Command history is saved automatically by the React component
+      // when commands are executed and when the app disconnects
+    });
+
+    // Handle loading failures
+    terminalWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      console.error('Terminal window failed to load:', errorCode, errorDescription);
+    });
+
+    // Handle navigation
+    terminalWindow.webContents.on('will-navigate', (event, url) => {
+      console.log('Terminal window will navigate to:', url);
+    });
+
+    // Make sure window is shown and focused
+    terminalWindow.show();
+    terminalWindow.focus();
+    console.log('Terminal window shown and focused');
+
+    console.log('=== Terminal window setup complete ===');
+    return { success: true, message: 'Terminal window opened successfully' };  } catch (error) {
+    console.error('=== ERROR: Failed to create terminal window ===');
+    console.error('Error details:', error);
+    console.error('Error stack:', error.stack);
     return { success: false, error: error.message };
   }
 });

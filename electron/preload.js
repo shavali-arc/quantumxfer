@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File system operations
   writeLogFile: (logData, logsDirectory) => ipcRenderer.invoke('write-log-file', logData, logsDirectory),
   
+  // Profile management
+  saveProfilesToFile: (profiles) => ipcRenderer.invoke('save-profiles-to-file', profiles),
+  loadProfilesFromFile: () => ipcRenderer.invoke('load-profiles-from-file'),
+  
+  // Command history management
+  saveCommandHistory: (data) => ipcRenderer.invoke('save-command-history', data),
+  loadCommandHistory: (profileId) => ipcRenderer.invoke('load-command-history', profileId),
+  appendCommandHistory: (data) => ipcRenderer.invoke('append-command-history', data),
+  
   // Terminal window
   openTerminalWindow: (terminalData) => ipcRenderer.invoke('open-terminal-window', terminalData),
   

@@ -1,4 +1,11 @@
 import { useState, useEffect } from 'react';
+import type { ConnectionProfile } from './types/electron.d.ts';
+
+// Global Command History Feature:
+// - Single shared command history across all profiles and terminal windows
+// - Stored in: %APPDATA%\quantumxfer\command-history\global-command-history.json
+// - Maximum 500 commands to prevent excessive storage
+// - Persistent across app restarts and available in both main and terminal windows
 
 interface SSHConfig {
   host: string;
@@ -6,23 +13,6 @@ interface SSHConfig {
   username: string;
   password: string;
   profileName?: string;
-}
-
-interface ConnectionProfile {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  lastUsed: Date;
-  logsDirectory?: string;
-  commandHistory?: string[]; // Add command history to profile
-  connectionCount?: number; // Track connection frequency
-  totalSessionTime?: number; // Track total session time in minutes
-  favorited?: boolean; // Mark as favorite
-  tags?: string[]; // Organization tags
-  sshKeyPath?: string; // SSH key authentication
-  jumpHost?: string; // Jump host for secured networks
 }
 
 interface TerminalLog {
@@ -103,66 +93,84 @@ function App() {
 
   // Load saved data on component mount
   useEffect(() => {
-    console.log('=== APP USEEFFECT INIT ===');
-    console.log('Current hash:', window.location.hash);
-    console.log('Window terminalData:', (window as any).terminalData);
-    
-    // Check if this is a terminal tab
-    if (window.location.hash === '#terminal') {
-      console.log('Terminal mode detected from hash');
-      const terminalData = localStorage.getItem('quantumxfer-terminal-data');
-      const windowTerminalData = (window as any).terminalData;
+    const initializeApp = async () => {
+      console.log('=== APP USEEFFECT INIT ===');
+      console.log('Current hash:', window.location.hash);
+      console.log('Window terminalData:', (window as any).terminalData);
+      console.log('localStorage terminalData:', localStorage.getItem('quantumxfer-terminal-data'));
       
-      if (terminalData || windowTerminalData) {
-        try {
-          const data = windowTerminalData || JSON.parse(terminalData || '{}');
-          console.log('Loading terminal data:', data);
-          setConfig(data.config);
-          setSessionId(data.sessionId);
-          setIsConnected(true);
-          setIsTerminalTab(true);
-          
-          // Set document title for terminal tab
-          document.title = `QuantumXfer Terminal - ${data.config.username}@${data.config.host}`;
-          
-          console.log('Terminal tab initialized successfully');
-          return; // Skip normal loading for terminal tab
-        } catch (error) {
-          console.error('Error loading terminal data:', error);
+      // Check if this is a terminal tab
+      if (window.location.hash === '#terminal') {
+        console.log('Terminal mode detected from hash');
+        const terminalData = localStorage.getItem('quantumxfer-terminal-data');
+        const windowTerminalData = (window as any).terminalData;
+        
+        if (terminalData || windowTerminalData) {
+          try {
+            const data = windowTerminalData || JSON.parse(terminalData || '{}');
+            console.log('Loading terminal data:', data);
+            setConfig(data.config);
+            setSessionId(data.sessionId);
+            setIsConnected(true);
+            setIsTerminalTab(true);
+            
+            // Set document title for terminal tab
+            document.title = `QuantumXfer Terminal - ${data.config.username}@${data.config.host}`;
+            
+            // Load command history from centralized file for terminal mode
+            try {
+              if (window.electronAPI && window.electronAPI.loadCommandHistory) {
+                const result = await window.electronAPI.loadCommandHistory();
+                if (result.success && result.commands) {
+                  setCommandHistory(result.commands);
+                  console.log('Terminal: Loaded global command history:', result.commands.length, 'commands');
+                }
+              }
+            } catch (error) {
+              console.error('Terminal: Error loading global command history:', error);
+            }
+            
+            console.log('Terminal tab initialized successfully');
+            return; // Skip normal loading for terminal tab
+          } catch (error) {
+            console.error('Error loading terminal data:', error);
+          }
+        } else {
+          console.warn('No terminal data found for terminal mode');
         }
       } else {
-        console.warn('No terminal data found');
+        console.log('Main app mode (no terminal hash)');
+        // Load existing logs and profiles for main app
       }
-    } else {
-      console.log('Main app mode (no terminal hash)');
-      // Load existing logs and profiles for main app
-    }
-    
-    loadProfiles();
-    loadSession();
-    loadDirectoryPreference();
-    
-    // Clear old logs with duplicate IDs
-    const savedLogs = localStorage.getItem('quantumxfer-logs');
-    if (savedLogs) {
-      try {
-        const logs = JSON.parse(savedLogs);
-        const logIds = logs.map((log: any) => log.id);
-        const hasDuplicates = logIds.length !== new Set(logIds).size;
-        
-        if (hasDuplicates) {
-          // Clear logs if duplicates found
+      
+      loadProfiles().catch(error => console.error('Error loading profiles:', error));
+      loadSession();
+      loadDirectoryPreference();
+      
+      // Clear old logs with duplicate IDs
+      const savedLogs = localStorage.getItem('quantumxfer-logs');
+      if (savedLogs) {
+        try {
+          const logs = JSON.parse(savedLogs);
+          const logIds = logs.map((log: any) => log.id);
+          const hasDuplicates = logIds.length !== new Set(logIds).size;
+          
+          if (hasDuplicates) {
+            // Clear logs if duplicates found
+            localStorage.removeItem('quantumxfer-logs');
+            setTerminalLogs([]);
+            console.log('Cleared duplicate terminal logs');
+          } else {
+            setTerminalLogs(logs);
+          }
+        } catch (error) {
+          console.error('Error loading logs:', error);
           localStorage.removeItem('quantumxfer-logs');
-          setTerminalLogs([]);
-          console.log('Cleared duplicate terminal logs');
-        } else {
-          setTerminalLogs(logs);
         }
-      } catch (error) {
-        console.error('Error loading logs:', error);
-        localStorage.removeItem('quantumxfer-logs');
       }
-    }
+    };
+
+    initializeApp();
   }, []);
 
   // Listen for terminal mode ready event
@@ -201,7 +209,7 @@ function App() {
     }
   }, [notification]);
 
-  // Cleanup: Save logs when component unmounts (app closes)
+  // Cleanup: Save logs and command history when component unmounts (app closes)
   useEffect(() => {
     return () => {
       if (selectedLogsDirectory && terminalLogs.length > 0) {
@@ -222,22 +230,56 @@ function App() {
           // Silently handle cleanup errors
         }
       }
+
+      // Save command history on app close
+      if (commandHistory.length > 0) {
+        saveCommandHistoryToProfile().catch(error =>
+          console.error('Error saving command history on app close:', error)
+        );
+      }
     };
-  }, [selectedLogsDirectory, terminalLogs]);
+  }, [selectedLogsDirectory, terminalLogs, commandHistory]);
 
   // Load command history for current profile when connected
   useEffect(() => {
     if (isConnected && config.profileName) {
-      const currentProfile = profiles.find(profile => 
-        profile.host === config.host && 
-        profile.username === config.username && 
-        profile.port === config.port
-      );
-      if (currentProfile && currentProfile.commandHistory) {
-        setCommandHistory(currentProfile.commandHistory);
+      if (window.electronAPI && window.electronAPI.loadCommandHistory && commandHistory.length === 0) {
+        window.electronAPI.loadCommandHistory()
+          .then(result => {
+            if (result.success && result.commands && result.commands.length > 0) {
+              setCommandHistory(result.commands);
+              console.log('Loaded global command history on connect:', result.commands.length, 'commands');
+            }
+          })
+          .catch(error => {
+            console.error('Error loading global command history on connect:', error);
+          });
       }
     }
-  }, [isConnected, config, profiles]);
+  }, [isConnected, config, commandHistory.length]);  // Save command history when disconnecting or unmounting
+  const saveCommandHistoryToProfile = async () => {
+    if (commandHistory.length > 0 && config.profileName) {
+      try {
+        if (window.electronAPI && window.electronAPI.saveCommandHistory) {
+          await window.electronAPI.saveCommandHistory({
+            commands: commandHistory
+          });
+          console.log('Command history saved to global file on disconnect:', config.profileName);
+        }
+      } catch (error) {
+        console.error('Error saving command history to global file on disconnect:', error);
+      }
+    }
+  };
+
+  // Save command history when disconnecting
+  useEffect(() => {
+    if (!isConnected && commandHistory.length > 0) {
+      saveCommandHistoryToProfile().catch(error =>
+        console.error('Error saving command history on disconnect:', error)
+      );
+    }
+  }, [isConnected, commandHistory]);
 
   // Load SFTP files when SFTP panel is opened
   useEffect(() => {
@@ -266,8 +308,27 @@ function App() {
     }
   }, [isConnected]);
 
-  const loadProfiles = () => {
+  const loadProfiles = async () => {
     try {
+      // Try to load from file first (Electron environment)
+      if (window.electronAPI && window.electronAPI.loadProfilesFromFile) {
+        console.log('Loading profiles from file storage...');
+        const result = await window.electronAPI.loadProfilesFromFile();
+        if (result.success && result.profiles) {
+          // Convert lastUsed string back to Date object and ensure commandHistory exists
+          const profilesWithDates = result.profiles.map((profile: any) => ({
+            ...profile,
+            lastUsed: new Date(profile.lastUsed),
+            commandHistory: profile.commandHistory || [] // Ensure commandHistory exists
+          }));
+          setProfiles(profilesWithDates);
+          console.log(`Loaded ${profilesWithDates.length} profiles from file storage`);
+          return;
+        }
+      }
+      
+      // Fallback to localStorage (browser environment or if file loading fails)
+      console.log('Falling back to localStorage for profiles...');
       const saved = localStorage.getItem('quantumxfer-profiles');
       if (saved) {
         const parsedProfiles = JSON.parse(saved);
@@ -278,17 +339,45 @@ function App() {
           commandHistory: profile.commandHistory || [] // Ensure commandHistory exists
         }));
         setProfiles(profilesWithDates);
+        console.log(`Loaded ${profilesWithDates.length} profiles from localStorage`);
+        
+        // Migrate profiles from localStorage to file storage if in Electron
+        if (window.electronAPI && window.electronAPI.saveProfilesToFile) {
+          console.log('Migrating profiles from localStorage to file storage...');
+          await window.electronAPI.saveProfilesToFile(profilesWithDates);
+          console.log('Profiles migrated successfully');
+        }
+      } else {
+        console.log('No profiles found in any storage');
       }
     } catch (error) {
+      console.error('Error loading profiles:', error);
       // Silently handle profile loading errors
     }
   };
 
-  const saveProfiles = (newProfiles: ConnectionProfile[]) => {
+  const saveProfiles = async (newProfiles: ConnectionProfile[]) => {
     try {
+      // Try to save to file first (Electron environment)
+      if (window.electronAPI && window.electronAPI.saveProfilesToFile) {
+        console.log('Saving profiles to file storage...');
+        const result = await window.electronAPI.saveProfilesToFile(newProfiles);
+        if (result.success) {
+          setProfiles(newProfiles);
+          console.log(`Saved ${newProfiles.length} profiles to file storage`);
+          return;
+        } else {
+          console.error('Failed to save profiles to file:', result.error);
+        }
+      }
+      
+      // Fallback to localStorage (browser environment or if file saving fails)
+      console.log('Falling back to localStorage for profile saving...');
       localStorage.setItem('quantumxfer-profiles', JSON.stringify(newProfiles));
       setProfiles(newProfiles);
+      console.log(`Saved ${newProfiles.length} profiles to localStorage`);
     } catch (error) {
+      console.error('Error saving profiles:', error);
       // Silently handle profile saving errors
     }
   };
@@ -307,13 +396,14 @@ function App() {
       const saved = localStorage.getItem('quantumxfer-session');
       if (saved) {
         const sessionData = JSON.parse(saved);
-        // Don't auto-load session data unless it's recent (within 1 hour)
-        if (Date.now() - sessionData.timestamp < 3600000) {
-          setConfig(sessionData.config);
-          setSessionId(sessionData.sessionId);
-        }
+        // Always load session data for better UX, regardless of timestamp
+        // Users expect their last connection details to be remembered
+        setConfig(sessionData.config);
+        setSessionId(sessionData.sessionId);
+        console.log('Loaded session data:', sessionData.config);
       }
     } catch (error) {
+      console.error('Error loading session:', error);
       // Silently handle session loading errors
     }
   };
@@ -337,11 +427,17 @@ function App() {
   };
 
   const handleConnect = async () => {
+    console.log('=== HANDLE CONNECT STARTED ===');
+    console.log('Current config state:', config);
+    console.log('Config validation - host:', !!config.host, 'username:', !!config.username, 'password:', !!config.password);
+    
     if (!config.host || !config.username || !config.password) {
+      console.log('=== CONFIG VALIDATION FAILED ===');
       setNotification({ message: 'Please fill in all connection details', type: 'error' });
       return;
     }
 
+    console.log('=== CONFIG VALIDATION PASSED ===');
     setIsConnected(false); // Reset connection state
     setNotification({ message: 'Connecting to server...', type: 'info' });
     
@@ -376,7 +472,7 @@ function App() {
             if (existingProfile) {
               const updatedProfiles = profiles.map(profile => 
                 profile.id === existingProfile.id 
-                  ? { ...profile, name: config.profileName!, lastUsed: new Date() }
+                  ? { ...profile, name: config.profileName!, lastUsed: new Date(), password: config.password }
                   : profile
               );
               saveProfiles(updatedProfiles);
@@ -388,6 +484,7 @@ function App() {
                 host: config.host,
                 port: config.port,
                 username: config.username,
+                password: config.password, // Store password securely
                 lastUsed: new Date(),
                 logsDirectory: selectedLogsDirectory || undefined,
                 commandHistory: []
@@ -437,14 +534,30 @@ function App() {
           localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
           
           // Open terminal in a NEW WINDOW via IPC
+          console.log('=== ATTEMPTING TO OPEN TERMINAL WINDOW ===');
+          console.log('window.electronAPI available:', !!window.electronAPI);
+          console.log('window.electronAPI.openTerminalWindow available:', !!window.electronAPI?.openTerminalWindow);
+          
           try {
-            await window.electronAPI.openTerminalWindow({
+            console.log('Calling openTerminalWindow with data:', {
               config: config,
               sessionId: newSessionId,
               connectionId: result.connectionId
             });
+            
+            const terminalResult = await window.electronAPI.openTerminalWindow({
+              config: config,
+              sessionId: newSessionId,
+              connectionId: result.connectionId
+            });
+            
+            console.log('Terminal window result:', terminalResult);
             setNotification({ message: 'Terminal window opened', type: 'success' });
           } catch (terminalError) {
+            console.error('=== TERMINAL WINDOW ERROR ===');
+            console.error('Error details:', terminalError);
+            console.error('Error message:', (terminalError as Error)?.message);
+            console.error('Error stack:', (terminalError as Error)?.stack);
             setNotification({ message: 'Failed to open terminal window', type: 'error' });
           }
           
@@ -580,11 +693,48 @@ function App() {
   const executeCommand = async () => {
     if (currentCommand.trim()) {
       const cmd = currentCommand.trim();
-      
-      // Add to command history
-      setCommandHistory(prev => [...prev, cmd]);
+
+      // Add to command history (limit to last 100 commands)
+      const newHistory = [...commandHistory, cmd].slice(-100);
+      setCommandHistory(newHistory);
       setHistoryIndex(-1);
-      
+
+      // Save command history back to the current profile
+      if (config.profileName) {
+        const currentProfile = profiles.find(profile =>
+          profile.host === config.host &&
+          profile.username === config.username &&
+          profile.port === config.port
+        );
+
+        if (currentProfile) {
+          const updatedProfile = {
+            ...currentProfile,
+            lastUsed: new Date()
+          };
+
+          const updatedProfiles = profiles.map(profile =>
+            profile.id === currentProfile.id ? updatedProfile : profile
+          );
+
+          await saveProfiles(updatedProfiles);
+        }
+      }
+
+      // Save command to centralized history
+      if (config.profileName) {
+        try {
+          if (window.electronAPI && window.electronAPI.appendCommandHistory) {
+            await window.electronAPI.appendCommandHistory({
+              command: cmd
+            });
+            console.log('Command saved to global history:', cmd);
+          }
+        } catch (error) {
+          console.error('Error saving command to global history:', error);
+        }
+      }
+
       try {
         // Get stored connection ID
         const connectionId = localStorage.getItem('quantumxfer-connection-id');
@@ -677,32 +827,44 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    console.log('=== KEY PRESSED ===', e.key, 'History length:', commandHistory.length, 'History index:', historyIndex);
+    
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (commandHistory.length > 0 && historyIndex < commandHistory.length - 1) {
         const newIndex = historyIndex + 1;
         setHistoryIndex(newIndex);
-        setCurrentCommand(commandHistory[commandHistory.length - 1 - newIndex]);
+        const command = commandHistory[commandHistory.length - 1 - newIndex];
+        setCurrentCommand(command);
+        console.log('History navigation UP - Index:', newIndex, 'Command:', command);
+      } else {
+        console.log('History navigation UP - No more commands (at beginning)');
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (historyIndex > 0) {
         const newIndex = historyIndex - 1;
         setHistoryIndex(newIndex);
-        setCurrentCommand(commandHistory[commandHistory.length - 1 - newIndex]);
+        const command = commandHistory[commandHistory.length - 1 - newIndex];
+        setCurrentCommand(command);
+        console.log('History navigation DOWN - Index:', newIndex, 'Command:', command);
       } else if (historyIndex === 0) {
         setHistoryIndex(-1);
         setCurrentCommand('');
+        console.log('History navigation DOWN - Back to empty input');
+      } else {
+        console.log('History navigation DOWN - No more commands (at end)');
       }
     }
   };
 
-  const loadProfile = (profile: ConnectionProfile) => {
+  const loadProfile = async (profile: ConnectionProfile) => {
     setConfig(prev => ({
       ...prev,
       host: profile.host,
       port: profile.port,
       username: profile.username,
+      password: profile.password || '', // Load password from profile
       profileName: profile.name
     }));
     
@@ -711,9 +873,25 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
       setSelectedLogsDirectory(profile.logsDirectory);
     }
     
-    // Load command history from profile
-    setCommandHistory(profile.commandHistory || []);
-    setHistoryIndex(-1);
+    // Load command history from centralized file
+    try {
+      if (window.electronAPI && window.electronAPI.loadCommandHistory) {
+        const result = await window.electronAPI.loadCommandHistory();
+        if (result.success && result.commands) {
+          setCommandHistory(result.commands);
+          setHistoryIndex(-1);
+          console.log('Loaded global command history from file:', profile.name, '- Commands:', result.commands.length);
+        } else {
+          setCommandHistory([]);
+          setHistoryIndex(-1);
+          console.log('No global command history found for profile:', profile.name);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading global command history:', error);
+      setCommandHistory([]);
+      setHistoryIndex(-1);
+    }
     
     setShowProfiles(false);
     
@@ -1149,7 +1327,9 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
                         margin: 0,
                         caretColor: 'white'
                       }}
-                      placeholder=""
+                      placeholder={commandHistory.length > 0 
+                        ? `Type command... (${commandHistory.length} in global history, ↑↓ to navigate) [${isTerminalTab ? 'TERMINAL' : 'MAIN'}]` 
+                        : `Type command... [${isTerminalTab ? 'TERMINAL' : 'MAIN'}]`}
                       autoComplete="off"
                       autoFocus
                     />
@@ -2016,7 +2196,7 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
                           {profile.favorited ? '⭐' : '☆'}
                         </button>
                         <button
-                          onClick={() => loadProfile(profile)}
+                          onClick={() => loadProfile(profile).catch(error => console.error('Error loading profile:', error))}
                           style={{
                             padding: '0.5rem 1rem',
                             backgroundColor: '#10b981',

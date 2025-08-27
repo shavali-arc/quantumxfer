@@ -24,6 +24,15 @@ export interface ElectronAPI {
   // File system operations
   writeLogFile: (logData: string, logsDirectory: string) => Promise<{ success: boolean; filePath?: string; filename?: string; error?: string }>;
   
+  // Profile management
+  saveProfilesToFile: (profiles: ConnectionProfile[]) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  loadProfilesFromFile: () => Promise<{ success: boolean; profiles: ConnectionProfile[]; error?: string }>;
+  
+  // Command history management
+  saveCommandHistory: (data: { commands: string[] }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  loadCommandHistory: () => Promise<{ success: boolean; commands: string[]; error?: string }>;
+  appendCommandHistory: (data: { command: string }) => Promise<{ success: boolean; commands: string[]; error?: string }>;
+  
   // Menu actions
   onMenuNewConnection: (callback: () => void) => void;
   onMenuLogsDirectory: (callback: () => void) => void;
@@ -96,6 +105,24 @@ export interface SSHConnectionsResult extends SSHResult {
     connected: boolean;
     createdAt: Date;
   }>;
+}
+
+export interface ConnectionProfile {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  password?: string; // Encrypted password for secure storage
+  lastUsed: Date;
+  logsDirectory?: string;
+  commandHistory?: string[];
+  connectionCount?: number;
+  totalSessionTime?: number;
+  favorited?: boolean;
+  tags?: string[];
+  sshKeyPath?: string;
+  jumpHost?: string;
 }
 
 declare global {
