@@ -749,7 +749,6 @@ function App() {
             let output = '';
             if (result.stdout) output += result.stdout;
             if (result.stderr) output += `\nError: ${result.stderr}`;
-            if (!result.stdout && !result.stderr) output = '(Command completed with no output)';
             
             // Update the last log entry with the real result
             setTerminalLogs(prev => {
