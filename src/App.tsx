@@ -340,13 +340,13 @@ function App() {
     }
   };
 
-  const handleConnect = async () => {
-    console.log('=== HANDLE CONNECT CALLED ===');
-    console.log('Config:', config);
+  const handleConnectWithConfig = async (connectionConfig: SSHConfig) => {
+    console.log('=== HANDLE CONNECT WITH CONFIG CALLED ===');
+    console.log('Config:', connectionConfig);
     console.log('electronAPI available:', !!window.electronAPI);
     console.log('electronAPI.openTerminalWindow available:', !!window.electronAPI?.openTerminalWindow);
     
-    if (!config.host || !config.username || !config.password) {
+    if (!connectionConfig.host || !connectionConfig.username || !connectionConfig.password) {
       console.log('Missing connection details');
       setNotification({ message: 'Please fill in all connection details', type: 'error' });
       return;
@@ -362,11 +362,11 @@ function App() {
         console.log('Using real SSH connection via Electron');
         // Use real SSH connection via Electron
         const result = await window.electronAPI.ssh.connect({
-          host: config.host,
-          port: config.port,
-          username: config.username,
-          password: config.password,
-          profileName: config.profileName
+          host: connectionConfig.host,
+          port: connectionConfig.port,
+          username: connectionConfig.username,
+          password: connectionConfig.password,
+          profileName: connectionConfig.profileName
         });
 
         console.log('SSH connection result:', result);
@@ -382,41 +382,41 @@ function App() {
           localStorage.setItem('quantumxfer-connection-id', result.connectionId.toString());
           
           // Save as profile if profile name is provided
-          if (config.profileName && config.profileName.trim()) {
-            console.log('Saving profile:', config.profileName);
+          if (connectionConfig.profileName && connectionConfig.profileName.trim()) {
+            console.log('Saving profile:', connectionConfig.profileName);
             const existingProfile = profiles.find(profile => 
-              profile.host === config.host && 
-              profile.username === config.username && 
-              profile.port === config.port
+              profile.host === connectionConfig.host && 
+              profile.username === connectionConfig.username && 
+              profile.port === connectionConfig.port
             );
             
             if (existingProfile) {
               const updatedProfiles = profiles.map(profile => 
                 profile.id === existingProfile.id 
-                  ? { ...profile, name: config.profileName!, lastUsed: new Date() }
+                  ? { ...profile, name: connectionConfig.profileName!, lastUsed: new Date() }
                   : profile
               );
               saveProfiles(updatedProfiles);
-              addTerminalLog('profile-update', `Updated existing profile: ${config.profileName}`);
+              addTerminalLog('profile-update', `Updated existing profile: ${connectionConfig.profileName}`);
             } else {
               const newProfile: ConnectionProfile = {
                 id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                name: config.profileName,
-                host: config.host,
-                port: config.port,
-                username: config.username,
+                name: connectionConfig.profileName,
+                host: connectionConfig.host,
+                port: connectionConfig.port,
+                username: connectionConfig.username,
                 lastUsed: new Date(),
                 logsDirectory: selectedLogsDirectory || undefined,
                 commandHistory: []
               };
               const updatedProfiles = [...profiles, newProfile];
               saveProfiles(updatedProfiles);
-              addTerminalLog('profile-create', `Created new profile: ${config.profileName}`);
+              addTerminalLog('profile-create', `Created new profile: ${connectionConfig.profileName}`);
             }
           }
           
           // Add connection log
-          addTerminalLog('ssh-connect', `✅ Successfully connected to ${config.username}@${config.host}:${config.port}`);
+          addTerminalLog('ssh-connect', `✅ Successfully connected to ${connectionConfig.username}@${connectionConfig.host}:${connectionConfig.port}`);
           setNotification({ message: `Connected to ${result.serverInfo?.host}`, type: 'success' });
           saveSession();
 
@@ -448,7 +448,7 @@ function App() {
           
           // Store terminal data for the terminal window
           const terminalData = {
-            config: config,
+            config: connectionConfig,
             sessionId: newSessionId,
             connectionId: result.connectionId,
             isConnected: true
@@ -459,14 +459,14 @@ function App() {
           // Open terminal in a NEW WINDOW via IPC
           console.log('=== OPENING TERMINAL IN NEW WINDOW ===');
           console.log('Calling openTerminalWindow with data:', {
-            config: config,
+            config: connectionConfig,
             sessionId: newSessionId,
             connectionId: result.connectionId
           });
           
           try {
             const terminalWindowResult = await window.electronAPI.openTerminalWindow({
-              config: config,
+              config: connectionConfig,
               sessionId: newSessionId,
               connectionId: result.connectionId
             });
@@ -489,7 +489,7 @@ function App() {
         const newSessionId = `session-${Date.now()}`;
         setSessionId(newSessionId);
         
-        addTerminalLog('ssh-connect', `🔧 Simulation mode: Connected to ${config.username}@${config.host}:${config.port}`);
+        addTerminalLog('ssh-connect', `🔧 Simulation mode: Connected to ${connectionConfig.username}@${connectionConfig.host}:${connectionConfig.port}`);
         setNotification({ message: 'Connected (Simulation Mode)', type: 'info' });
         saveSession();
         
@@ -497,22 +497,36 @@ function App() {
         console.log('=== OPENING TERMINAL IN NEW WINDOW (SIMULATION) ===');
         try {
           await window.electronAPI.openTerminalWindow({
-            config: config,
+            config: connectionConfig,
             sessionId: newSessionId,
-            connectionId: null // No real connection in simulation mode
+            connectionId: null
           });
-          setNotification({ message: 'Terminal window opened (Simulation)', type: 'success' });
+          setNotification({ message: 'Terminal window opened (Simulation)', type: 'info' });
         } catch (terminalError) {
-          console.error('Failed to open terminal window:', terminalError);
+          console.error('Failed to open terminal window in simulation mode:', terminalError);
           setNotification({ message: 'Failed to open terminal window', type: 'error' });
         }
       }
-      
     } catch (error: any) {
       console.error('Connection error:', error);
-      setNotification({ message: `Connection failed: ${error.message}`, type: 'error' });
+      setNotification({ message: `Connection error: ${error.message}`, type: 'error' });
       addTerminalLog('ssh-error', `❌ Connection error: ${error.message}`);
     }
+  };
+
+  const handleConnect = async () => {
+    console.log('=== HANDLE CONNECT CALLED ===');
+    console.log('Config:', config);
+    console.log('electronAPI available:', !!window.electronAPI);
+    console.log('electronAPI.openTerminalWindow available:', !!window.electronAPI?.openTerminalWindow);
+    
+    if (!config.host || !config.username || !config.password) {
+      console.log('Missing connection details');
+      setNotification({ message: 'Please fill in all connection details', type: 'error' });
+      return;
+    }
+
+    return handleConnectWithConfig(config);
   };
 
   const handleDisconnect = async () => {
@@ -759,13 +773,14 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
     }
   };
 
-  const loadProfile = (profile: ConnectionProfile) => {
+  const loadProfile = async (profile: ConnectionProfile) => {
     setConfig(prev => ({
       ...prev,
       host: profile.host,
       port: profile.port,
       username: profile.username,
-      profileName: profile.name
+      profileName: profile.name,
+      password: '' // Clear password for security
     }));
     
     // Load logs directory from profile if available
@@ -784,6 +799,20 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
       p.id === profile.id ? { ...p, lastUsed: new Date() } : p
     );
     saveProfiles(updatedProfiles);
+
+    // Show notification to guide user
+    setNotification({ 
+      message: `Profile "${profile.name}" loaded. Please enter your password and click Connect.`, 
+      type: 'info' 
+    });
+
+    // Focus password field after a brief delay
+    setTimeout(() => {
+      const passwordField = document.querySelector('input[type="password"]') as HTMLInputElement;
+      if (passwordField) {
+        passwordField.focus();
+      }
+    }, 100);
   };
 
   const deleteProfile = (profileId: string) => {
@@ -2084,7 +2113,60 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
                         <button
                           onClick={() => loadProfile(profile)}
                           style={{
-                            padding: '0.5rem 1rem',
+                            padding: '0.5rem 0.8rem',
+                            backgroundColor: '#6366f1',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: '500'
+                          }}
+                        >
+                          Load
+                        </button>
+                        <button
+                          onClick={async () => {
+                            // Load profile and prompt for password, then connect
+                            setConfig(prev => ({
+                              ...prev,
+                              host: profile.host,
+                              port: profile.port,
+                              username: profile.username,
+                              profileName: profile.name,
+                              password: '' // Will be prompted
+                            }));
+                            
+                            // Load logs directory and command history
+                            if (profile.logsDirectory) {
+                              setSelectedLogsDirectory(profile.logsDirectory);
+                            }
+                            setCommandHistory(profile.commandHistory || []);
+                            setHistoryIndex(-1);
+                            setShowProfiles(false);
+                            
+                            // Update last used
+                            const updatedProfiles = profiles.map(p => 
+                              p.id === profile.id ? { ...p, lastUsed: new Date() } : p
+                            );
+                            saveProfiles(updatedProfiles);
+
+                            // Prompt for password and connect immediately
+                            const password = prompt(`Enter password for ${profile.username}@${profile.host}:`);
+                            if (password) {
+                              const configWithPassword = {
+                                host: profile.host,
+                                port: profile.port,
+                                username: profile.username,
+                                password: password,
+                                profileName: profile.name
+                              };
+                              
+                              await handleConnectWithConfig(configWithPassword);
+                            }
+                          }}
+                          style={{
+                            padding: '0.5rem 0.8rem',
                             backgroundColor: '#10b981',
                             color: 'white',
                             border: 'none',
