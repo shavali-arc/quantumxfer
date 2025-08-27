@@ -4,12 +4,21 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
+// Import SSH Service
+import SSHService from './ssh-service.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Keep a global reference of the window object
 let mainWindow;
 let splashWindow;
+
+// Check if we're in development
+const isDev = process.env.NODE_ENV === 'development';
+
+// Initialize SSH service
+const sshService = new SSHService();
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
@@ -124,16 +133,16 @@ function createMainWindow() {
   });
 
   // Load the app
-  const isDev = process.env.NODE_ENV === 'development';
-  
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL('http://localhost:5189');
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
     // In production, the dist folder is in the same directory as the electron folder
     const indexPath = path.join(__dirname, '../dist/index.html');
     mainWindow.loadFile(indexPath);
+    // Don't open DevTools in production (uncomment next line for debugging)
+    // mainWindow.webContents.openDevTools();
   }
 
   // Show window when ready
@@ -154,12 +163,9 @@ function createMainWindow() {
     mainWindow = null;
   });
 
-  // Handle external links
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
+  // DON'T handle external links here - let our global handler do it
+  // This was causing Edge to open for internal URLs!
+  
   // Create application menu
   createMenu();
 }
@@ -353,10 +359,184 @@ ipcMain.handle('show-open-dialog', async (event, options) => {
   return result;
 });
 
-// Security: Prevent new window creation
+// SSH IPC Handlers
+ipcMain.handle('ssh-connect', async (event, config) => {
+  try {
+    const result = await sshService.connect(config);
+    console.log('SSH Connection successful:', result);
+    return result;
+  } catch (error) {
+    console.error('SSH Connection failed:', error);
+    return error;
+  }
+});
+
+ipcMain.handle('ssh-execute-command', async (event, connectionId, command) => {
+  try {
+    const result = await sshService.executeCommand(connectionId, command);
+    return result;
+  } catch (error) {
+    console.error('SSH Command execution failed:', error);
+    return error;
+  }
+});
+
+ipcMain.handle('ssh-list-directory', async (event, connectionId, remotePath) => {
+  try {
+    const result = await sshService.listDirectory(connectionId, remotePath);
+    return result;
+  } catch (error) {
+    console.error('SSH Directory listing failed:', error);
+    return error;
+  }
+});
+
+ipcMain.handle('ssh-download-file', async (event, connectionId, remotePath, localPath) => {
+  try {
+    const result = await sshService.downloadFile(connectionId, remotePath, localPath);
+    return result;
+  } catch (error) {
+    console.error('SSH File download failed:', error);
+    return error;
+  }
+});
+
+ipcMain.handle('ssh-upload-file', async (event, connectionId, localPath, remotePath) => {
+  try {
+    const result = await sshService.uploadFile(connectionId, localPath, remotePath);
+    return result;
+  } catch (error) {
+    console.error('SSH File upload failed:', error);
+    return error;
+  }
+});
+
+ipcMain.handle('ssh-disconnect', (event, connectionId) => {
+  try {
+    const result = sshService.disconnect(connectionId);
+    return result;
+  } catch (error) {
+    console.error('SSH Disconnect failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('ssh-get-connections', () => {
+  try {
+    return {
+      success: true,
+      connections: sshService.getActiveConnections()
+    };
+  } catch (error) {
+    console.error('Get SSH connections failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Add IPC handler for opening terminal window
+ipcMain.handle('open-terminal-window', async (event, terminalData) => {
+  console.log('=== IPC: open-terminal-window called ===');
+  console.log('Terminal data received:', JSON.stringify(terminalData, null, 2));
+  
+  try {
+    const terminalWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      },
+      icon: path.join(__dirname, '../assets/icon.ico'),
+      title: `QuantumXfer Terminal - ${terminalData.config.username}@${terminalData.config.host}`
+    });
+    
+    console.log('Terminal window created successfully');
+    
+    // IMPORTANT: Load the same way as main window to avoid file associations
+    if (isDev) {
+      console.log('Development mode: loading from dev server');
+      // In development, load from dev server with terminal hash
+      await terminalWindow.loadURL('http://localhost:5189/#terminal');
+    } else {
+      console.log('Production mode: loading from file');
+      // In production, load the built HTML file directly 
+      // This should work the same as the main window
+      const indexPath = path.join(__dirname, '../dist/index.html');
+      console.log('Loading index.html from:', indexPath);
+      await terminalWindow.loadFile(indexPath + '#terminal');
+    }
+    
+    console.log('Terminal window content loaded successfully');
+    
+    // Set terminal mode immediately when DOM is ready
+    terminalWindow.webContents.once('dom-ready', () => {
+      console.log('Terminal window DOM ready, setting terminal mode...');
+      terminalWindow.webContents.executeJavaScript(`
+        console.log('=== TERMINAL WINDOW SETUP ===');
+        console.log('Current hash:', window.location.hash);
+        
+        // Ensure hash is set to terminal
+        if (window.location.hash !== '#terminal') {
+          console.log('Setting hash to #terminal');
+          window.location.hash = '#terminal';
+        }
+        
+        // Set global terminal data
+        const terminalData = ${JSON.stringify(terminalData)};
+        window.terminalData = terminalData;
+        console.log('Terminal data set:', window.terminalData);
+        
+        // Store in localStorage as well
+        localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
+        console.log('Terminal data stored in localStorage');
+        
+        // Force React to re-render by dispatching a custom event
+        window.dispatchEvent(new CustomEvent('terminal-mode-ready', { 
+          detail: terminalData 
+        }));
+        
+        console.log('=== TERMINAL WINDOW SETUP COMPLETE ===');
+      `);
+    });
+    
+    // Open DevTools in development for debugging
+    if (isDev) {
+      console.log('Opening DevTools for terminal window');
+      terminalWindow.webContents.openDevTools();
+    }
+    
+    console.log('=== Terminal window setup complete ===');
+    return { success: true, message: 'Terminal window opened successfully' };
+    
+  } catch (error) {
+    console.error('=== ERROR: Failed to create terminal window ===');
+    console.error('Error details:', error);
+    console.error('Error stack:', error.stack);
+    return { success: false, error: error.message };
+  }
+});
+
+// Security: Handle new window creation - Only block external URLs
 app.on('web-contents-created', (event, contents) => {
-  contents.on('new-window', (event, navigationUrl) => {
-    event.preventDefault();
-    shell.openExternal(navigationUrl);
+  contents.setWindowOpenHandler(({ url }) => {
+    console.log('setWindowOpenHandler called with URL:', url);
+    
+    // Allow internal app navigation (file:// URLs with our app path)
+    if (url.startsWith('file://') && url.includes('index.html')) {
+      console.log('ALLOWING internal app navigation');
+      return { action: 'allow' };
+    }
+    
+    // Block external URLs (http://, https://, etc.)
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      console.log('BLOCKING external URL, opening in system browser');
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    
+    // Allow other internal URLs
+    console.log('ALLOWING internal URL');
+    return { action: 'allow' };
   });
 });

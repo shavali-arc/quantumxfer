@@ -103,12 +103,20 @@ function App() {
 
   // Load saved data on component mount
   useEffect(() => {
+    console.log('=== APP USEEFFECT INIT ===');
+    console.log('Current hash:', window.location.hash);
+    console.log('Window terminalData:', (window as any).terminalData);
+    
     // Check if this is a terminal tab
     if (window.location.hash === '#terminal') {
+      console.log('Terminal mode detected from hash');
       const terminalData = localStorage.getItem('quantumxfer-terminal-data');
-      if (terminalData) {
+      const windowTerminalData = (window as any).terminalData;
+      
+      if (terminalData || windowTerminalData) {
         try {
-          const data = JSON.parse(terminalData);
+          const data = windowTerminalData || JSON.parse(terminalData || '{}');
+          console.log('Loading terminal data:', data);
           setConfig(data.config);
           setSessionId(data.sessionId);
           setIsConnected(true);
@@ -117,16 +125,17 @@ function App() {
           // Set document title for terminal tab
           document.title = `QuantumXfer Terminal - ${data.config.username}@${data.config.host}`;
           
-          // Load existing logs and profiles
-          loadProfiles();
-          loadSession();
-          loadDirectoryPreference();
-          
+          console.log('Terminal tab initialized successfully');
           return; // Skip normal loading for terminal tab
         } catch (error) {
           console.error('Error loading terminal data:', error);
         }
+      } else {
+        console.warn('No terminal data found');
       }
+    } else {
+      console.log('Main app mode (no terminal hash)');
+      // Load existing logs and profiles for main app
     }
     
     loadProfiles();
@@ -154,6 +163,25 @@ function App() {
         localStorage.removeItem('quantumxfer-logs');
       }
     }
+  }, []);
+
+  // Listen for terminal mode ready event
+  useEffect(() => {
+    const handleTerminalModeReady = (event: CustomEvent) => {
+      console.log('Terminal mode ready event received:', event.detail);
+      const data = event.detail;
+      setConfig(data.config);
+      setSessionId(data.sessionId);
+      setIsConnected(true);
+      setIsTerminalTab(true);
+      document.title = `QuantumXfer Terminal - ${data.config.username}@${data.config.host}`;
+    };
+
+    window.addEventListener('terminal-mode-ready', handleTerminalModeReady as EventListener);
+    
+    return () => {
+      window.removeEventListener('terminal-mode-ready', handleTerminalModeReady as EventListener);
+    };
   }, []);
 
   // Auto-save logs
@@ -266,11 +294,6 @@ function App() {
     }
   };
 
-  const saveDirectoryPreference = (dir: string) => {
-    setCurrentDirectory(dir);
-    localStorage.setItem('quantumxfer-directory', dir);
-  };
-
   const saveLogsDirectoryPreference = (dir: string) => {
     setSelectedLogsDirectory(dir);
     localStorage.setItem('quantumxfer-logs-directory', dir);
@@ -289,78 +312,202 @@ function App() {
     }
   };
 
-  const handleConnect = () => {
-    if (config.host && config.username && config.password) {
-      setIsConnected(true);
-      const newSessionId = `session-${Date.now()}`;
-      setSessionId(newSessionId);
-      
-      // Save as profile if profile name is provided and doesn't already exist
-      if (config.profileName && config.profileName.trim()) {
-        // Check if a profile with the same host, username, and port already exists
-        const existingProfile = profiles.find(profile => 
-          profile.host === config.host && 
-          profile.username === config.username && 
-          profile.port === config.port
-        );
-        
-        if (existingProfile) {
-          // Update the existing profile's last used date and name if different
-          const updatedProfiles = profiles.map(profile => 
-            profile.id === existingProfile.id 
-              ? { ...profile, name: config.profileName!, lastUsed: new Date() }
-              : profile
-          );
-          saveProfiles(updatedProfiles);
-          addTerminalLog('profile-update', `Updated existing profile: ${config.profileName}`);
-          setNotification({ message: `Profile "${config.profileName}" updated (connection already exists)`, type: 'info' });
-        } else {
-          // Create new profile
-          const newProfile: ConnectionProfile = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: config.profileName,
-            host: config.host,
-            port: config.port,
-            username: config.username,
-            lastUsed: new Date(),
-            logsDirectory: selectedLogsDirectory || undefined,
-            commandHistory: []
+  const handleConnect = async () => {
+    console.log('=== HANDLE CONNECT CALLED ===');
+    console.log('Config:', config);
+    console.log('electronAPI available:', !!window.electronAPI);
+    console.log('electronAPI.openTerminalWindow available:', !!window.electronAPI?.openTerminalWindow);
+    
+    if (!config.host || !config.username || !config.password) {
+      console.log('Missing connection details');
+      setNotification({ message: 'Please fill in all connection details', type: 'error' });
+      return;
+    }
+
+    setIsConnected(false); // Reset connection state
+    setNotification({ message: 'Connecting to server...', type: 'info' });
+    console.log('Starting connection attempt...');
+    
+    try {
+      // Check if we're running in Electron
+      if (window.electronAPI && window.electronAPI.ssh) {
+        console.log('Using real SSH connection via Electron');
+        // Use real SSH connection via Electron
+        const result = await window.electronAPI.ssh.connect({
+          host: config.host,
+          port: config.port,
+          username: config.username,
+          password: config.password,
+          profileName: config.profileName
+        });
+
+        console.log('SSH connection result:', result);
+
+        if (result.success && result.connectionId) {
+          console.log('SSH connection successful, connectionId:', result.connectionId);
+          setIsConnected(true);
+          const newSessionId = `session-${Date.now()}`;
+          setSessionId(newSessionId);
+          console.log('Session ID created:', newSessionId);
+          
+          // Store the real connection ID for later use
+          localStorage.setItem('quantumxfer-connection-id', result.connectionId.toString());
+          
+          // Save as profile if profile name is provided
+          if (config.profileName && config.profileName.trim()) {
+            console.log('Saving profile:', config.profileName);
+            const existingProfile = profiles.find(profile => 
+              profile.host === config.host && 
+              profile.username === config.username && 
+              profile.port === config.port
+            );
+            
+            if (existingProfile) {
+              const updatedProfiles = profiles.map(profile => 
+                profile.id === existingProfile.id 
+                  ? { ...profile, name: config.profileName!, lastUsed: new Date() }
+                  : profile
+              );
+              saveProfiles(updatedProfiles);
+              addTerminalLog('profile-update', `Updated existing profile: ${config.profileName}`);
+            } else {
+              const newProfile: ConnectionProfile = {
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                name: config.profileName,
+                host: config.host,
+                port: config.port,
+                username: config.username,
+                lastUsed: new Date(),
+                logsDirectory: selectedLogsDirectory || undefined,
+                commandHistory: []
+              };
+              const updatedProfiles = [...profiles, newProfile];
+              saveProfiles(updatedProfiles);
+              addTerminalLog('profile-create', `Created new profile: ${config.profileName}`);
+            }
+          }
+          
+          // Add connection log
+          addTerminalLog('ssh-connect', `✅ Successfully connected to ${config.username}@${config.host}:${config.port}`);
+          setNotification({ message: `Connected to ${result.serverInfo?.host}`, type: 'success' });
+          saveSession();
+          
+          // Load remote directory
+          try {
+            console.log('Loading remote directory...');
+            const dirResult = await window.electronAPI.ssh.listDirectory(result.connectionId, '/');
+            console.log('Directory listing result:', dirResult);
+            if (dirResult.success && dirResult.files) {
+              setRemoteFiles(dirResult.files.map(file => ({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                modified: new Date(file.modified),
+                permissions: file.permissions,
+                path: file.path
+              })));
+              setRemotePath('/');
+              addTerminalLog('sftp-ls', `Listed directory: ${dirResult.path}`);
+            }
+          } catch (dirError) {
+            console.warn('Failed to load initial directory:', dirError);
+          }
+          
+          // Store terminal data for the terminal window
+          const terminalData = {
+            config: config,
+            sessionId: newSessionId,
+            connectionId: result.connectionId,
+            isConnected: true
           };
-          const updatedProfiles = [...profiles, newProfile];
-          saveProfiles(updatedProfiles);
-          addTerminalLog('profile-create', `Created new profile: ${config.profileName}`);
-          setNotification({ message: `New profile "${config.profileName}" created successfully`, type: 'success' });
+          localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
+          console.log('Stored terminal data:', terminalData);
+          
+          // Open terminal in a NEW WINDOW via IPC
+          console.log('=== OPENING TERMINAL IN NEW WINDOW ===');
+          console.log('Calling openTerminalWindow with data:', {
+            config: config,
+            sessionId: newSessionId,
+            connectionId: result.connectionId
+          });
+          
+          try {
+            const terminalWindowResult = await window.electronAPI.openTerminalWindow({
+              config: config,
+              sessionId: newSessionId,
+              connectionId: result.connectionId
+            });
+            console.log('Terminal window result:', terminalWindowResult);
+            setNotification({ message: 'Terminal window opened', type: 'success' });
+          } catch (terminalError) {
+            console.error('Failed to open terminal window:', terminalError);
+            console.error('Terminal error details:', (terminalError as Error)?.message, (terminalError as Error)?.stack);
+            setNotification({ message: 'Failed to open terminal window', type: 'error' });
+          }
+          
+        } else {
+          // Connection failed
+          setNotification({ message: `Connection failed: ${result.error || 'Unknown error'}`, type: 'error' });
+          addTerminalLog('ssh-error', `❌ Connection failed: ${result.error}`);
+        }
+      } else {
+        // Fallback to simulation mode if not in Electron
+        setIsConnected(true);
+        const newSessionId = `session-${Date.now()}`;
+        setSessionId(newSessionId);
+        
+        addTerminalLog('ssh-connect', `🔧 Simulation mode: Connected to ${config.username}@${config.host}:${config.port}`);
+        setNotification({ message: 'Connected (Simulation Mode)', type: 'info' });
+        saveSession();
+        
+        // Open terminal in a NEW WINDOW via IPC (simulation mode)
+        console.log('=== OPENING TERMINAL IN NEW WINDOW (SIMULATION) ===');
+        try {
+          await window.electronAPI.openTerminalWindow({
+            config: config,
+            sessionId: newSessionId,
+            connectionId: null // No real connection in simulation mode
+          });
+          setNotification({ message: 'Terminal window opened (Simulation)', type: 'success' });
+        } catch (terminalError) {
+          console.error('Failed to open terminal window:', terminalError);
+          setNotification({ message: 'Failed to open terminal window', type: 'error' });
         }
       }
       
-      // Add connection log
-      addTerminalLog('ssh-connect', `Connected to ${config.username}@${config.host}:${config.port}`);
-      saveSession();
-      
-      // Open terminal in new tab
-      const terminalData = {
-        config,
-        sessionId: newSessionId,
-        timestamp: Date.now()
-      };
-      
-      // Store connection data for the new tab
-      localStorage.setItem('quantumxfer-terminal-data', JSON.stringify(terminalData));
-      
-      // Open new tab with terminal interface
-      const newTab = window.open(`${window.location.origin}${window.location.pathname}#terminal`, '_blank');
-      
-      if (newTab) {
-        setNotification({ message: 'Terminal opened in new tab', type: 'success' });
-      } else {
-        setNotification({ message: 'Please allow popups to open terminal in new tab', type: 'warning' });
-      }
+    } catch (error: any) {
+      console.error('Connection error:', error);
+      setNotification({ message: `Connection failed: ${error.message}`, type: 'error' });
+      addTerminalLog('ssh-error', `❌ Connection error: ${error.message}`);
     }
   };
 
-  const handleDisconnect = () => {
-    addTerminalLog('ssh-disconnect', 'Connection closed');
-    setIsConnected(false);
+  const handleDisconnect = async () => {
+    try {
+      // Get stored connection ID
+      const connectionId = localStorage.getItem('quantumxfer-connection-id');
+      
+      if (connectionId && window.electronAPI && window.electronAPI.ssh) {
+        // Close real SSH connection
+        const result = await window.electronAPI.ssh.disconnect(parseInt(connectionId));
+        if (result.success) {
+          addTerminalLog('ssh-disconnect', '✅ SSH connection closed');
+        } else {
+          addTerminalLog('ssh-disconnect', `❌ Disconnect error: ${result.error}`);
+        }
+        localStorage.removeItem('quantumxfer-connection-id');
+      } else {
+        addTerminalLog('ssh-disconnect', '🔧 Simulation mode: Connection closed');
+      }
+      
+      setIsConnected(false);
+      setRemoteFiles([]);
+      setRemotePath('/');
+    } catch (error: any) {
+      console.error('Disconnect error:', error);
+      addTerminalLog('ssh-disconnect', `❌ Disconnect error: ${error.message}`);
+      setIsConnected(false);
+    }
   };
 
   const addTerminalLog = (command: string, output: string) => {
@@ -374,7 +521,7 @@ function App() {
     setTerminalLogs(prev => [...prev, newLog]);
   };
 
-  const executeCommand = () => {
+  const executeCommand = async () => {
     if (currentCommand.trim()) {
       const cmd = currentCommand.trim();
       
@@ -382,71 +529,106 @@ function App() {
       setCommandHistory(prev => [...prev, cmd]);
       setHistoryIndex(-1);
       
-      let output = '';
-      
-      // Simple command simulation
-      if (cmd.toLowerCase() === 'help' || cmd.toLowerCase() === 'get-help') {
-        output = `Available commands:
-  ls, dir, Get-ChildItem - List directory contents
-  cd, Set-Location       - Change directory
-  pwd, Get-Location      - Show current directory
-  Get-Date              - Show current date/time
-  Get-Process           - List running processes
-  Test-Connection       - Ping a host
-  whoami                - Show current user
-  clear, cls            - Clear terminal
-  exit, logout          - Disconnect session`;
-      } else if (cmd.toLowerCase() === 'get-date') {
-        output = new Date().toString();
-      } else if (cmd.toLowerCase() === 'ls' || cmd.toLowerCase() === 'dir' || cmd.toLowerCase() === 'get-childitem') {
-        output = `Directory: ${currentDirectory}
-
-Mode                LastWriteTime         Length Name
-----                -------------         ------ ----
-d-----        8/20/2025  12:00 AM                Documents
-d-----        8/20/2025  12:00 AM                Downloads
-d-----        8/20/2025  12:00 AM                Pictures
--a----        8/20/2025  12:00 AM           1024 config.txt
--a----        8/20/2025  12:00 AM           2048 readme.md
--a----        8/20/2025  12:00 AM            512 script.ps1`;
-      } else if (cmd.toLowerCase().startsWith('cd ') || cmd.toLowerCase().startsWith('set-location ')) {
-        const newDir = cmd.split(' ').slice(1).join(' ');
-        saveDirectoryPreference(newDir);
-        output = `Changed directory to: ${newDir}`;
-      } else if (cmd.toLowerCase() === 'pwd' || cmd.toLowerCase() === 'get-location') {
-        output = `Path
-----
-${currentDirectory}`;
-      } else if (cmd.toLowerCase() === 'clear' || cmd.toLowerCase() === 'cls') {
-        setTerminalLogs([]);
-        setCurrentCommand('');
-        return;
-      } else if (cmd.toLowerCase() === 'exit' || cmd.toLowerCase() === 'logout') {
-        output = 'Disconnecting...';
-        setTimeout(() => handleDisconnect(), 1000);
-      } else {
-        output = `'${cmd}' is not recognized as an internal or external command.
-Type 'help' to see available commands.`;
-      }
-      
-      addTerminalLog(cmd, output);
-      setCurrentCommand('');
-      
-      // Save updated command history to profile
-      if (config.profileName) {
-        const updatedProfiles = profiles.map(profile => {
-          if (profile.host === config.host && 
-              profile.username === config.username && 
-              profile.port === config.port) {
-            return { 
-              ...profile, 
-              commandHistory: [...(profile.commandHistory || []), cmd],
-              lastUsed: new Date()
-            };
+      try {
+        // Get stored connection ID
+        const connectionId = localStorage.getItem('quantumxfer-connection-id');
+        console.log('=== COMMAND EXECUTION DEBUG ===');
+        console.log('Connection ID from localStorage:', connectionId);
+        console.log('window.electronAPI available:', !!window.electronAPI);
+        console.log('window.electronAPI.ssh available:', !!window.electronAPI?.ssh);
+        console.log('isConnected:', isConnected);
+        console.log('All conditions:', !!(connectionId && window.electronAPI && window.electronAPI.ssh && isConnected));
+        
+        // Also show debug info in the terminal for easy visibility
+        const debugInfo = `DEBUG: connId=${connectionId}, electronAPI=${!!window.electronAPI}, ssh=${!!window.electronAPI?.ssh}, connected=${isConnected}`;
+        addTerminalLog('debug', debugInfo);
+        
+        if (connectionId && window.electronAPI && window.electronAPI.ssh && isConnected) {
+          // Execute real SSH command
+          console.log('=== EXECUTING REAL SSH COMMAND ===');
+          addTerminalLog(cmd, '⏳ Executing...');
+          
+          const result = await window.electronAPI.ssh.executeCommand(parseInt(connectionId), cmd);
+          console.log('SSH command result:', result);
+          
+          if (result.success) {
+            let output = '';
+            if (result.stdout) output += result.stdout;
+            if (result.stderr) output += `\nError: ${result.stderr}`;
+            if (!result.stdout && !result.stderr) output = '(Command completed with no output)';
+            
+            // Update the last log entry with the real result
+            setTerminalLogs(prev => {
+              const updated = [...prev];
+              if (updated.length > 0) {
+                updated[updated.length - 1] = {
+                  ...updated[updated.length - 1],
+                  output: output.trim()
+                };
+              }
+              return updated;
+            });
+          } else {
+            // Update the last log entry with error
+            setTerminalLogs(prev => {
+              const updated = [...prev];
+              if (updated.length > 0) {
+                updated[updated.length - 1] = {
+                  ...updated[updated.length - 1],
+                  output: `❌ Command failed: ${result.error}`
+                };
+              }
+              return updated;
+            });
           }
-          return profile;
-        });
-        saveProfiles(updatedProfiles);
+        } else {
+          // Fallback to simulation mode
+          let output = '';
+          
+          if (cmd.toLowerCase() === 'help' || cmd.toLowerCase() === 'get-help') {
+            output = `🔧 Simulation Mode - Available commands:
+  ls, dir - List directory contents
+  cd      - Change directory
+  pwd     - Show current directory
+  date    - Show current date/time
+  whoami  - Show current user
+  clear   - Clear terminal
+  exit    - Disconnect session`;
+          } else if (cmd.toLowerCase() === 'date') {
+            output = new Date().toString();
+          } else if (cmd.toLowerCase() === 'ls' || cmd.toLowerCase() === 'dir') {
+            output = `total 8
+drwxr-xr-x 2 user user 4096 Aug 21 10:00 Documents
+drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
+-rw-r--r-- 1 user user 1024 Aug 21 10:00 config.txt
+-rw-r--r-- 1 user user 2048 Aug 21 10:00 readme.md`;
+          } else if (cmd.toLowerCase().startsWith('cd ')) {
+            const newDir = cmd.split(' ').slice(1).join(' ');
+            output = `Changed directory to: ${newDir}`;
+          } else if (cmd.toLowerCase() === 'pwd') {
+            output = currentDirectory;
+          } else if (cmd.toLowerCase() === 'whoami') {
+            output = config.username;
+          } else if (cmd.toLowerCase() === 'clear' || cmd.toLowerCase() === 'cls') {
+            setTerminalLogs([]);
+            setCurrentCommand('');
+            return;
+          } else if (cmd.toLowerCase() === 'exit' || cmd.toLowerCase() === 'logout') {
+            output = 'Disconnecting...';
+            setTimeout(() => handleDisconnect(), 1000);
+          } else {
+            output = `🔧 Simulation: '${cmd}' - Use 'help' to see available commands.`;
+          }
+          
+          addTerminalLog(cmd, output);
+        }
+        
+        setCurrentCommand('');
+        
+      } catch (error: any) {
+        console.error('Command execution error:', error);
+        addTerminalLog(cmd, `❌ Error: ${error.message}`);
+        setCurrentCommand('');
       }
     }
   };
@@ -793,6 +975,27 @@ Type 'help' to see available commands.`;
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ fontSize: '1rem' }}>🟦</span>
               <span style={{ color: 'white', fontSize: '0.9rem', fontWeight: '500' }}>Windows PowerShell</span>
+              {isTerminalTab && (
+                <button
+                  onClick={() => {
+                    setIsTerminalTab(false);
+                    document.title = 'QuantumXfer Enterprise';
+                    setNotification({ message: 'Switched back to connection mode', type: 'info' });
+                  }}
+                  style={{
+                    marginLeft: '1rem',
+                    padding: '0.25rem 0.5rem',
+                    fontSize: '0.75rem',
+                    backgroundColor: '#059669',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ← Back to Connection
+                </button>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button style={{ width: '12px', height: '12px', borderRadius: '2px', border: 'none', backgroundColor: '#fbbf24', cursor: 'pointer' }}></button>
@@ -1360,7 +1563,7 @@ Type 'help' to see available commands.`;
               Connected to {config.username}@{config.host}:{config.port}
             </p>
             <p style={{ margin: '0', color: '#a7f3d0', fontSize: '0.9rem' }}>
-              Terminal opened in new tab. You can continue using this window to manage connections.
+              Terminal opened in new window. You can continue using this window to manage connections.
             </p>
           </div>
 
