@@ -247,6 +247,13 @@ function App() {
     };
   }, []);
 
+  // Auto-select first session when terminal tab is active
+  useEffect(() => {
+    if (activeTab === 'terminal' && terminalSessions.length > 0 && !activeSessionId) {
+      setActiveSessionId(terminalSessions[0].id);
+    }
+  }, [activeTab, terminalSessions, activeSessionId]);
+
   // Keyboard shortcuts for tab switching
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -287,6 +294,16 @@ function App() {
         if (event.key === 's' && event.altKey) {
           event.preventDefault();
           setTerminalMode(terminalMode === 'ssh' ? 'sftp' : 'ssh');
+        }
+      }
+
+      // Switch between terminal sessions
+      if (activeTab === 'terminal' && terminalSessions.length > 1) {
+        if (event.key === 'Tab' && event.ctrlKey) {
+          event.preventDefault();
+          const currentIndex = terminalSessions.findIndex(s => s.id === activeSessionId);
+          const nextIndex = (currentIndex + 1) % terminalSessions.length;
+          setActiveSessionId(terminalSessions[nextIndex].id);
         }
       }
     };
@@ -1388,71 +1405,6 @@ function App() {
 
         {activeTab === 'terminal' && terminalSessions.length > 0 && (
           <div>
-            {/* Terminal Sessions Tabs */}
-            <div style={{
-              backgroundColor: '#1e293b',
-              borderBottom: '1px solid #334155',
-              padding: '0 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0'
-            }}>
-              {terminalSessions.map((session) => (
-                <button
-                  key={session.id}
-                  onClick={() => setActiveSessionId(session.id)}
-                  style={{
-                    padding: '12px 20px',
-                    backgroundColor: activeSessionId === session.id ? '#3b82f6' : 'transparent',
-                    color: 'white',
-                    border: 'none',
-                    borderBottom: activeSessionId === session.id ? '3px solid #60a5fa' : '3px solid transparent',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    position: 'relative'
-                  }}
-                >
-                  <span>💻</span>
-                  <span>{session.config.username}@{session.config.host}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Close session
-                      setTerminalSessions(prev => prev.filter(s => s.id !== session.id));
-                      if (activeSessionId === session.id) {
-                        const remainingSessions = terminalSessions.filter(s => s.id !== session.id);
-                        setActiveSessionId(remainingSessions.length > 0 ? remainingSessions[0].id : null);
-                      }
-                    }}
-                    style={{
-                      marginLeft: '0.5rem',
-                      background: 'none',
-                      border: 'none',
-                      color: '#94a3b8',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      padding: '2px',
-                      borderRadius: '2px'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
-                  >
-                    ✕
-                  </button>
-                </button>
-              ))}
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                  {terminalSessions.length} session{terminalSessions.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
-
             {/* Terminal Tab Content */}
             <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', padding: '1rem' }}>
               <style>{`
@@ -1500,6 +1452,42 @@ function App() {
                   <span style={{ color: 'white', fontSize: '0.9rem', fontWeight: '500' }}>
                     Windows PowerShell - {activeSession ? `${activeSession.config.username}@${activeSession.config.host}:${activeSession.config.port}` : 'No Active Session'}
                   </span>
+                  {terminalSessions.length > 1 && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginLeft: '1rem',
+                      padding: '0.25rem 0.5rem',
+                      backgroundColor: '#0f172a',
+                      borderRadius: '4px',
+                      border: '1px solid #334155'
+                    }}>
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                        Session {terminalSessions.findIndex(s => s.id === activeSessionId) + 1} of {terminalSessions.length}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const currentIndex = terminalSessions.findIndex(s => s.id === activeSessionId);
+                          const nextIndex = (currentIndex + 1) % terminalSessions.length;
+                          setActiveSessionId(terminalSessions[nextIndex].id);
+                        }}
+                        style={{
+                          padding: '0.2rem 0.4rem',
+                          backgroundColor: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          fontSize: '0.7rem',
+                          fontWeight: 'bold'
+                        }}
+                        title="Switch to next session (Ctrl+Tab)"
+                      >
+                        ↻
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Terminal Mode Toggle */}
