@@ -44,18 +44,6 @@ interface SFTPFile {
   path: string;
 }
 
-interface TransferItem {
-  id: string;
-  name: string;
-  type: 'upload' | 'download';
-  status: 'pending' | 'transferring' | 'completed' | 'error';
-  progress: number;
-  size: number;
-  localPath?: string;
-  remotePath: string;
-  error?: string;
-}
-
 function App() {
   const [config, setConfig] = useState<SSHConfig>({
     host: '',
@@ -140,11 +128,8 @@ function App() {
   const [_sortBy, _setSortBy] = useState<'lastUsed' | 'name' | 'frequency'>('lastUsed');
 
   // SFTP state
-  const [_showSFTP, _setShowSFTP] = useState(false);
-  const [_remoteFiles, _setRemoteFiles] = useState<SFTPFile[]>([]);
-  const [_remotePath, _setRemotePath] = useState('/');
-  const [_transfers, _setTransfers] = useState<TransferItem[]>([]);
-  const [_selectedFiles, _setSelectedFiles] = useState<SFTPFile[]>([]);
+  const [remoteFiles, setRemoteFiles] = useState<SFTPFile[]>([]);
+  const [remotePath, setRemotePath] = useState('/home/work');
 
   // Load saved data on component mount
   useEffect(() => {
@@ -861,6 +846,121 @@ function App() {
   };
 
 
+  // SFTP Functions
+  const loadSFTPFiles = async (path: string = remotePath) => {
+    if (!isConnected || !activeSession?.connectionId) {
+      setNotification({ message: 'Not connected to server', type: 'error' });
+      return;
+    }
+
+    try {
+      if (window.electronAPI && window.electronAPI.ssh && window.electronAPI.ssh.listDirectory) {
+        const result = await window.electronAPI.ssh.listDirectory(activeSession.connectionId, path);
+        if (result.success && result.files) {
+          setRemoteFiles(result.files);
+          setRemotePath(path);
+          addTerminalLog('sftp-ls', `Listed directory: ${path} (${result.files.length} items)`);
+        } else {
+          setNotification({ message: `Failed to list directory: ${result.error}`, type: 'error' });
+          addTerminalLog('sftp-error', `Failed to list directory: ${result.error}`);
+        }
+      }
+    } catch (error) {
+      console.error('SFTP list directory error:', error);
+      setNotification({ message: 'Failed to load SFTP files', type: 'error' });
+    }
+  };
+
+  const downloadFile = async (file: SFTPFile) => {
+    if (!isConnected || !activeSession?.connectionId) {
+      setNotification({ message: 'Not connected to server', type: 'error' });
+      return;
+    }
+
+    try {
+      // Show save dialog
+      const result = await window.electronAPI.showSaveDialog({
+        title: 'Save File',
+        defaultPath: file.name,
+        filters: [
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (result.canceled) return;
+
+      if (window.electronAPI && window.electronAPI.ssh && window.electronAPI.ssh.downloadFile) {
+        const downloadResult = await window.electronAPI.ssh.downloadFile(activeSession.connectionId, file.path, result.filePath);
+        if (downloadResult.success) {
+          setNotification({ message: `Downloaded ${file.name}`, type: 'success' });
+          addTerminalLog('sftp-download', `Downloaded: ${file.name} (${file.size} bytes)`);
+        } else {
+          setNotification({ message: `Download failed: ${downloadResult.error}`, type: 'error' });
+          addTerminalLog('sftp-error', `Download failed: ${downloadResult.error}`);
+        }
+      }
+    } catch (error) {
+      console.error('SFTP download error:', error);
+      setNotification({ message: 'Download failed', type: 'error' });
+    }
+  };
+
+  const uploadFile = async () => {
+    if (!isConnected || !activeSession?.connectionId) {
+      setNotification({ message: 'Not connected to server', type: 'error' });
+      return;
+    }
+
+    try {
+      // Show open dialog
+      const result = await window.electronAPI.showOpenDialog({
+        title: 'Select File to Upload',
+        properties: ['openFile']
+      });
+
+      if (result.canceled || result.filePaths.length === 0) return;
+
+      const localPath = result.filePaths[0];
+      const fileName = localPath.split(/[/\\]/).pop();
+      const remotePathUpload = `${remotePath}/${fileName}`;
+
+      if (window.electronAPI && window.electronAPI.ssh && window.electronAPI.ssh.uploadFile) {
+        const uploadResult = await window.electronAPI.ssh.uploadFile(activeSession.connectionId, localPath, remotePathUpload);
+        if (uploadResult.success) {
+          setNotification({ message: `Uploaded ${fileName}`, type: 'success' });
+          addTerminalLog('sftp-upload', `Uploaded: ${fileName}`);
+          // Refresh file list
+          loadSFTPFiles(remotePath);
+        } else {
+          setNotification({ message: `Upload failed: ${uploadResult.error}`, type: 'error' });
+          addTerminalLog('sftp-error', `Upload failed: ${uploadResult.error}`);
+        }
+      }
+    } catch (error) {
+      console.error('SFTP upload error:', error);
+      setNotification({ message: 'Upload failed', type: 'error' });
+    }
+  };
+
+  const navigateToDirectory = (path: string) => {
+    loadSFTPFiles(path);
+  };
+
+  const goToParentDirectory = () => {
+    const parentPath = remotePath.split('/').slice(0, -1).join('/') || '/';
+    loadSFTPFiles(parentPath);
+  };
+
+  // Load SFTP files when terminal mode changes to SFTP
+  useEffect(() => {
+    if (terminalMode === 'sftp' && isConnected && activeSession?.connectionId) {
+      // Start in user's home directory instead of root
+      const homeDir = activeSession?.config?.username ? `/home/${activeSession.config.username}` : '/home/work';
+      loadSFTPFiles(homeDir);
+    }
+  }, [terminalMode, isConnected, activeSession?.connectionId]);
+
+
   // Main tabbed interface - Single return statement
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', display: 'flex' }}>
@@ -1552,16 +1652,141 @@ function App() {
                 </div>
               ) : (
                 <div style={{ backgroundColor: '#1e293b', borderRadius: '8px', border: '1px solid #334155', overflow: 'hidden' }}>
-                  {/* SFTP Browser */}
+                  {/* SFTP Browser Header */}
                   <div style={{ padding: '0.75rem', borderBottom: '1px solid #334155' }}>
-                    <h3 style={{ margin: 0, color: '#f1f5f9' }}>SFTP File Browser</h3>
-                    <p style={{ margin: '0.5rem 0 0 0', color: '#94a3b8' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <h3 style={{ margin: 0, color: '#f1f5f9' }}>SFTP File Browser</h3>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={uploadFile}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          📤 Upload
+                        </button>
+                        <button
+                          onClick={() => loadSFTPFiles(remotePath)}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#64748b',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          🔄 Refresh
+                        </button>
+                      </div>
+                    </div>
+                    <p style={{ margin: '0', color: '#94a3b8', fontSize: '0.9rem' }}>
                       Remote: {config.username}@{config.host}:{config.port}
                     </p>
                   </div>
 
-                  <div style={{ padding: '0.75rem' }}>
-                    <p style={{ color: '#94a3b8' }}>SFTP functionality will be implemented here...</p>
+                  {/* Path Navigation */}
+                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #334155', backgroundColor: '#0f172a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button
+                        onClick={goToParentDirectory}
+                        disabled={remotePath === '/'}
+                        style={{
+                          padding: '0.25rem',
+                          backgroundColor: remotePath === '/' ? '#374151' : '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: remotePath === '/' ? 'not-allowed' : 'pointer',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        ⬅️
+                      </button>
+                      <span style={{ color: '#f1f5f9', fontSize: '0.9rem', fontFamily: 'monospace' }}>
+                        {remotePath}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* File List */}
+                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    {remoteFiles.length === 0 ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                        {isConnected ? 'No files in this directory' : 'Connect to a server to browse files'}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gap: '0.25rem', padding: '0.5rem' }}>
+                        {remoteFiles.map((file, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.5rem',
+                              backgroundColor: '#0f172a',
+                              borderRadius: '4px',
+                              border: '1px solid #334155',
+                              cursor: file.type === 'directory' ? 'pointer' : 'default'
+                            }}
+                            onClick={() => file.type === 'directory' && navigateToDirectory(file.path)}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                              <span style={{ fontSize: '1rem' }}>
+                                {file.type === 'directory' ? '📁' : '📄'}
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  color: '#f1f5f9',
+                                  fontSize: '0.9rem',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}>
+                                  {file.name}
+                                </div>
+                                <div style={{
+                                  color: '#94a3b8',
+                                  fontSize: '0.7rem',
+                                  display: 'flex',
+                                  gap: '1rem'
+                                }}>
+                                  <span>{file.type === 'directory' ? 'Directory' : `${(file.size / 1024).toFixed(1)} KB`}</span>
+                                  <span>{file.modified.toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            </div>
+                            {file.type === 'file' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadFile(file);
+                                }}
+                                style={{
+                                  padding: '0.25rem 0.5rem',
+                                  backgroundColor: '#3b82f6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                ⬇️ Download
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
