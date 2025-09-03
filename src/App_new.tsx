@@ -875,7 +875,7 @@ function App() {
 
       {/* Vertical Sidebar Navigation */}
       <div style={{
-        width: '280px',
+        width: '240px',
         backgroundColor: '#1e293b',
         borderRight: '1px solid #334155',
         display: 'flex',
@@ -884,7 +884,7 @@ function App() {
       }}>
         {/* Logo/Brand */}
         <div style={{
-          padding: '1.5rem',
+          padding: '1rem',
           borderBottom: '1px solid #334155',
           textAlign: 'center'
         }}>
@@ -912,7 +912,7 @@ function App() {
           {/* MAIN Section */}
           <div style={{ marginBottom: '2rem' }}>
             <div style={{
-              padding: '0.5rem 1rem',
+              padding: '0.5rem 0.75rem',
               fontSize: '11px',
               fontWeight: 'bold',
               color: '#64748b',
@@ -1067,7 +1067,7 @@ function App() {
         <div style={{
           backgroundColor: '#1e293b',
           borderBottom: '1px solid #334155',
-          padding: '1rem 2rem',
+          padding: '0.75rem 1.5rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'
@@ -1086,7 +1086,7 @@ function App() {
         </div>
 
         {/* Tab Content */}
-        <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+        <div style={{ flex: 1, padding: '0.75rem', overflowY: 'auto' }}>
         {activeTab === 'connection' && (
           <div>
             {/* Connection Tab Content */}
@@ -1095,13 +1095,13 @@ function App() {
               <div style={{
                 backgroundColor: '#1e293b',
                 borderRadius: '12px',
-                padding: '2rem',
+                padding: '1.5rem',
                 border: '1px solid #334155'
               }}>
-                <h2 style={{ marginBottom: '1.5rem', color: '#f1f5f9' }}>SSH Connection</h2>
+                <h2 style={{ marginBottom: '0.75rem', color: '#f1f5f9' }}>SSH Connection</h2>
 
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <div>
                       <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }}>
                         Host
@@ -1113,7 +1113,7 @@ function App() {
                         placeholder="example.com or 192.168.1.100"
                         style={{
                           width: '100%',
-                          padding: '0.75rem',
+                          padding: '0.5rem',
                           backgroundColor: '#0f172a',
                           border: '1px solid #334155',
                           borderRadius: '6px',
@@ -1133,7 +1133,7 @@ function App() {
                         placeholder="22"
                         style={{
                           width: '100%',
-                          padding: '0.75rem',
+                          padding: '0.5rem',
                           backgroundColor: '#0f172a',
                           border: '1px solid #334155',
                           borderRadius: '6px',
@@ -1155,7 +1155,7 @@ function App() {
                       placeholder="your-username"
                       style={{
                         width: '100%',
-                        padding: '0.75rem',
+                        padding: '0.5rem',
                         backgroundColor: '#0f172a',
                         border: '1px solid #334155',
                         borderRadius: '6px',
@@ -1176,7 +1176,7 @@ function App() {
                       placeholder="your-password"
                       style={{
                         width: '100%',
-                        padding: '0.75rem',
+                        padding: '0.5rem',
                         backgroundColor: '#0f172a',
                         border: '1px solid #334155',
                         borderRadius: '6px',
@@ -1197,7 +1197,7 @@ function App() {
                       placeholder="My Server Profile"
                       style={{
                         width: '100%',
-                        padding: '0.75rem',
+                        padding: '0.5rem',
                         backgroundColor: '#0f172a',
                         border: '1px solid #334155',
                         borderRadius: '6px',
@@ -1220,7 +1220,7 @@ function App() {
                         readOnly
                         style={{
                           flex: 1,
-                          padding: '0.75rem',
+                          padding: '0.5rem',
                           backgroundColor: '#0f172a',
                           border: '1px solid #334155',
                           borderRadius: '6px',
@@ -1231,7 +1231,7 @@ function App() {
                       <button
                         onClick={selectLogsDirectory}
                         style={{
-                          padding: '0.75rem 1rem',
+                          padding: '0.75rem 0.75rem',
                           backgroundColor: '#64748b',
                           color: 'white',
                           border: 'none',
@@ -1251,12 +1251,12 @@ function App() {
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
                     <button
                       onClick={handleConnect}
                       disabled={!config.host || !config.username || !config.password}
                       style={{
-                        padding: '0.75rem 2rem',
+                        padding: '0.75rem 1.5rem',
                         backgroundColor: '#3b82f6',
                         color: 'white',
                         border: 'none',
@@ -1273,7 +1273,7 @@ function App() {
                     <button
                       onClick={() => setShowProfiles(!showProfiles)}
                       style={{
-                        padding: '0.75rem 1rem',
+                        padding: '0.75rem 0.75rem',
                         backgroundColor: '#64748b',
                         color: 'white',
                         border: 'none',
@@ -1291,24 +1291,24 @@ function App() {
               {/* Profiles Section */}
               {showProfiles && (
                 <div style={{
-                  marginTop: '2rem',
+                  marginTop: '1.5rem',
                   backgroundColor: '#1e293b',
                   borderRadius: '12px',
-                  padding: '2rem',
+                  padding: '1.5rem',
                   border: '1px solid #334155'
                 }}>
-                  <h3 style={{ marginBottom: '1rem', color: '#f1f5f9' }}>Connection Profiles</h3>
+                  <h3 style={{ marginBottom: '0.75rem', color: '#f1f5f9' }}>Connection Profiles</h3>
 
                   {profiles.length === 0 ? (
                     <p style={{ color: '#94a3b8' }}>No saved profiles yet.</p>
                   ) : (
-                    <div style={{ display: 'grid', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
                       {profiles.map(profile => (
                         <div key={profile.id} style={{
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          padding: '1rem',
+                          padding: '0.75rem',
                           backgroundColor: '#0f172a',
                           borderRadius: '8px',
                           border: '1px solid #334155'
@@ -1323,7 +1323,7 @@ function App() {
                             <button
                               onClick={() => loadProfile(profile)}
                               style={{
-                                padding: '0.5rem 1rem',
+                                padding: '0.5rem 0.75rem',
                                 backgroundColor: '#10b981',
                                 color: 'white',
                                 border: 'none',
@@ -1337,7 +1337,7 @@ function App() {
                             <button
                               onClick={() => deleteProfile(profile.id)}
                               style={{
-                                padding: '0.5rem 1rem',
+                                padding: '0.5rem 0.75rem',
                                 backgroundColor: '#ef4444',
                                 color: 'white',
                                 border: 'none',
@@ -1451,7 +1451,7 @@ function App() {
                   <button
                     onClick={() => setTerminalMode('ssh')}
                     style={{
-                      padding: '0.5rem 1rem',
+                      padding: '0.5rem 0.75rem',
                       backgroundColor: terminalMode === 'ssh' ? '#059669' : '#64748b',
                       color: 'white',
                       border: 'none',
@@ -1465,7 +1465,7 @@ function App() {
                   <button
                     onClick={() => setTerminalMode('sftp')}
                     style={{
-                      padding: '0.5rem 1rem',
+                      padding: '0.5rem 0.75rem',
                       backgroundColor: terminalMode === 'sftp' ? '#059669' : '#64748b',
                       color: 'white',
                       border: 'none',
@@ -1553,14 +1553,14 @@ function App() {
               ) : (
                 <div style={{ backgroundColor: '#1e293b', borderRadius: '8px', border: '1px solid #334155', overflow: 'hidden' }}>
                   {/* SFTP Browser */}
-                  <div style={{ padding: '1rem', borderBottom: '1px solid #334155' }}>
+                  <div style={{ padding: '0.75rem', borderBottom: '1px solid #334155' }}>
                     <h3 style={{ margin: 0, color: '#f1f5f9' }}>SFTP File Browser</h3>
                     <p style={{ margin: '0.5rem 0 0 0', color: '#94a3b8' }}>
                       Remote: {config.username}@{config.host}:{config.port}
                     </p>
                   </div>
 
-                  <div style={{ padding: '1rem' }}>
+                  <div style={{ padding: '0.75rem' }}>
                     <p style={{ color: '#94a3b8' }}>SFTP functionality will be implemented here...</p>
                   </div>
                 </div>
@@ -1596,7 +1596,7 @@ function App() {
                   <button
                     onClick={selectLogsDirectory}
                     style={{
-                      padding: '0.5rem 1rem',
+                      padding: '0.5rem 0.75rem',
                       backgroundColor: '#3b82f6',
                       color: 'white',
                       border: 'none',
@@ -1618,7 +1618,7 @@ function App() {
                       }
                     }}
                     style={{
-                      padding: '0.5rem 1rem',
+                      padding: '0.5rem 0.75rem',
                       backgroundColor: '#64748b',
                       color: 'white',
                       border: 'none',
@@ -1643,7 +1643,7 @@ function App() {
           position: 'fixed',
           top: '2rem',
           right: '2rem',
-          padding: '1rem 1.5rem',
+          padding: '0.75rem 1.25rem',
           borderRadius: '8px',
           backgroundColor: notification.type === 'success' ? '#10b981' :
                           notification.type === 'error' ? '#ef4444' :
