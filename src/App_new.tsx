@@ -846,7 +846,7 @@ function App() {
 
   // Main tabbed interface - Single return statement
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', display: 'flex' }}>
       <style>
         {`
           @keyframes blink {
@@ -855,87 +855,158 @@ function App() {
           }
         `}
       </style>
-      {/* Enterprise Tab Navigation */}
+
+      {/* Vertical Sidebar Navigation */}
       <div style={{
+        width: '280px',
         backgroundColor: '#1e293b',
-        borderBottom: '1px solid #334155',
-        padding: '0 1rem',
+        borderRight: '1px solid #334155',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
+        flexDirection: 'column',
+        minHeight: '100vh'
       }}>
         {/* Logo/Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '16px'
-          }}>
-            ⚡
+        <div style={{
+          padding: '1.5rem',
+          borderBottom: '1px solid #334155',
+          textAlign: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px'
+            }}>
+              ⚡
+            </div>
           </div>
-          <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f1f5f9' }}>
+          <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#f1f5f9' }}>
             QuantumXfer
           </span>
         </div>
 
-        {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '0' }}>
+        {/* Navigation Tabs */}
+        <div style={{ padding: '1rem 0', flex: 1 }}>
           <button
             onClick={() => setActiveTab('connection')}
             style={{
-              padding: '12px 24px',
+              width: '100%',
+              padding: '16px 20px',
               backgroundColor: activeTab === 'connection' ? '#3b82f6' : 'transparent',
               color: 'white',
               border: 'none',
-              borderBottom: activeTab === 'connection' ? '3px solid #60a5fa' : '3px solid transparent',
+              borderLeft: activeTab === 'connection' ? '4px solid #60a5fa' : '4px solid transparent',
               cursor: 'pointer',
               fontSize: '14px',
               fontWeight: '500',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem'
             }}
           >
-            🔗 {isConnected ? `${config.username}@${config.host}` : 'Connection'}
+            <span>🔗</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span>Connection</span>
+              {isConnected && (
+                <span style={{ fontSize: '11px', opacity: 0.8, fontWeight: 'normal' }}>
+                  {config.username}@{config.host}
+                </span>
+              )}
+            </div>
           </button>
 
           <button
             onClick={() => setActiveTab('terminal')}
             disabled={!isConnected}
             style={{
-              padding: '12px 24px',
+              width: '100%',
+              padding: '16px 20px',
               backgroundColor: activeTab === 'terminal' ? '#3b82f6' : 'transparent',
               color: isConnected ? 'white' : '#64748b',
               border: 'none',
-              borderBottom: activeTab === 'terminal' ? '3px solid #60a5fa' : '3px solid transparent',
+              borderLeft: activeTab === 'terminal' ? '4px solid #60a5fa' : '4px solid transparent',
               cursor: isConnected ? 'pointer' : 'not-allowed',
               fontSize: '14px',
               fontWeight: '500',
               transition: 'all 0.2s ease',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
               opacity: isConnected ? 1 : 0.5
             }}
           >
-            💻 {isConnected ? `${config.username}@${config.host}` : 'Terminal (Not Connected)'}
+            <span>💻</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span>Terminal</span>
+              {isConnected && (
+                <span style={{ fontSize: '11px', opacity: 0.8, fontWeight: 'normal' }}>
+                  {config.username}@{config.host}
+                </span>
+              )}
+            </div>
           </button>
         </div>
 
-        {/* Status */}
-        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+        {/* Status Footer */}
+        <div style={{
+          padding: '1rem',
+          borderTop: '1px solid #334155',
+          fontSize: '12px',
+          color: '#94a3b8'
+        }}>
           {isConnected ? (
-            <span style={{ color: '#10b981' }}>
-              🟢 Connected to {config.username}@{config.host}:{config.port}
-            </span>
+            <div style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>🟢</span>
+              <div>
+                <div>Connected</div>
+                <div style={{ fontSize: '10px', opacity: 0.7 }}>
+                  {config.username}@{config.host}:{config.port}
+                </div>
+              </div>
+            </div>
           ) : (
-            <span>🔴 Not Connected</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>🔴</span>
+              <span>Not Connected</span>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div style={{ padding: '1rem' }}>
+      {/* Main Content Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* Content Header */}
+        <div style={{
+          backgroundColor: '#1e293b',
+          borderBottom: '1px solid #334155',
+          padding: '1rem 2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: 'bold',
+            color: '#f1f5f9',
+            margin: 0
+          }}>
+            {activeTab === 'connection' ? 'SSH Connection Setup' : 'Terminal Sessions'}
+          </h1>
+          <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+            QuantumXfer v1.0.0
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
         {activeTab === 'connection' && (
           <div>
             {/* Connection Tab Content */}
@@ -1556,6 +1627,7 @@ function App() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Notification */}
