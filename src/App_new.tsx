@@ -1225,22 +1225,22 @@ function App() {
                     {terminalLogs.map((log) => (
                       <div key={log.id} style={{ marginBottom: '0.5rem' }}>
                         <div style={{ color: '#3b82f6', fontWeight: 'bold' }}>
-                          {config.username}@{config.host}:{config.port}{log.directory || currentDirectory}$
+                          {config.username}@{config.host}:{config.port}{log.directory || currentDirectory}$ {log.command}
                         </div>
-                        <div style={{ color: '#f1f5f9', marginLeft: '1rem' }}>{log.command}</div>
                         {log.output && (
-                          <div style={{ color: '#94a3b8', marginLeft: '1rem', whiteSpace: 'pre-wrap' }}>{log.output}</div>
+                          <div style={{ color: '#94a3b8', whiteSpace: 'pre-wrap' }}>{log.output}</div>
                         )}
                       </div>
                     ))}
 
                     {/* Current Command Line */}
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <span style={{ color: '#3b82f6', fontWeight: 'bold', marginRight: '0.5rem' }}>
+                      <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>
                         {config.username}@{config.host}:{config.port}{currentDirectory}$
                       </span>
                       <span
                         style={{
+                          marginLeft: '0.5rem',
                           flex: 1,
                           outline: 'none',
                           border: 'none',
