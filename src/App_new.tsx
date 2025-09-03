@@ -1091,50 +1091,6 @@ function App() {
           <div>
             {/* Connection Tab Content */}
             <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-              {/* Header */}
-              <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-                  <div style={{
-                    width: '60px',
-                    height: '60px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '24px'
-                  }}>
-                    ⚡
-                  </div>
-                  <h1 style={{
-                    fontSize: '3rem',
-                    fontWeight: 'bold',
-                    margin: '0 0 0.5rem 0',
-                    background: 'linear-gradient(45deg, #06b6d4, #3b82f6)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent'
-                  }}>
-                    QuantumXfer
-                  </h1>
-                </div>
-                <p style={{
-                  fontSize: '1.2rem',
-                  color: '#94a3b8',
-                  marginBottom: '1rem'
-                }}>
-                  Secure SSH/SFTP Client with Terminal Logging & Session Management
-                </p>
-                <p style={{
-                  fontSize: '0.9rem',
-                  color: '#64748b',
-                  lineHeight: '1.5'
-                }}>
-                  Professional SSH/SFTP Client with Enterprise-Grade Security, Management & Analytics
-                  <br />
-                  Built with React 18 + TypeScript + Modern Web Technologies
-                </p>
-              </div>
-
               {/* Connection Form */}
               <div style={{
                 backgroundColor: '#1e293b',
