@@ -432,7 +432,7 @@ function App() {
               if (updated.length > 0) {
                 updated[updated.length - 1] = {
                   ...updated[updated.length - 1],
-                  output: output.trim()
+                  output: output
                 };
               }
               return updated;

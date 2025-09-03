@@ -154,8 +154,8 @@ class SSHService {
           resolve({
             success: true,
             command,
-            stdout: stdout.trim(),
-            stderr: stderr.trim(),
+            stdout: stdout,
+            stderr: stderr,
             exitCode: code,
             signal
           });
