@@ -2,7 +2,7 @@
   "name": "quantumxfer-app",
   "productName": "QuantumXfer Enterprise",
   "description": "Professional SSH/SFTP Client with Enterprise-Grade Security and Management",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "QuantumXfer Enterprise",
   "homepage": "https://quantumxfer.enterprise",
   "main": "electron/main.js",
