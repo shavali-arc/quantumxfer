@@ -939,18 +939,6 @@ function App() {
           </div>
 
           {/* TERMINALS Section */}
-          <div>
-            <div style={{
-              padding: '0.5rem 1rem',
-              fontSize: '11px',
-              fontWeight: 'bold',
-              color: '#64748b',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              marginBottom: '0.5rem'
-            }}>
-              Terminals
-            </div>
             {/* Terminal Sessions Sub-section */}
             {terminalSessions.length > 0 && (
               <div style={{ marginTop: '1rem', paddingLeft: '1rem' }}>
@@ -1028,7 +1016,6 @@ function App() {
                 ))}
               </div>
             )}
-          </div>
         </div>
 
         {/* Status Footer */}
