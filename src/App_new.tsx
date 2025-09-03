@@ -7,6 +7,18 @@ import type { ConnectionProfile } from './types/electron.d.ts';
 // - Maximum 500 commands to prevent excessive storage
 // - Persistent across app restarts and available in both main and terminal windows
 
+interface TerminalSession {
+  id: string;
+  config: SSHConfig;
+  terminalLogs: TerminalLog[];
+  commandHistory: string[];
+  historyIndex: number;
+  currentDirectory: string;
+  sessionId: string;
+  isConnected: boolean;
+  connectionId?: number;
+}
+
 interface SSHConfig {
   host: string;
   port: number;
@@ -45,7 +57,6 @@ interface TransferItem {
 }
 
 function App() {
-  const [isConnected, setIsConnected] = useState(false);
   const [config, setConfig] = useState<SSHConfig>({
     host: '',
     port: 22,
@@ -58,6 +69,10 @@ function App() {
   const [activeTab, setActiveTab] = useState<'connection' | 'terminal'>('connection');
   const [terminalMode, setTerminalMode] = useState<'ssh' | 'sftp'>('ssh'); // For switching between SSH and SFTP in terminal tab
 
+  // Multiple terminal sessions management
+  const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
   // Notification state
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error' } | null>(null);
 
@@ -65,13 +80,28 @@ function App() {
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
   const [currentDirectory] = useState('/home');
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
   const [autoSave] = useState(true);
   const [sessionId, setSessionId] = useState(`session-${Date.now()}`);
+
+  // Connection state
+  const [isConnected, setIsConnected] = useState(false);
 
   // Terminal refs
   const terminalRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLSpanElement>(null);
+
+  // Current session computed values
+  const activeSession = terminalSessions.find(session => session.id === activeSessionId);
+
+  // Debug: Monitor terminal logs changes
+  useEffect(() => {
+    if (activeSession) {
+      console.log('=== TERMINAL LOGS UPDATED ===');
+      console.log('Active Session ID:', activeSession.id);
+      console.log('Terminal Logs Count:', activeSession.terminalLogs.length);
+      console.log('Terminal Logs:', activeSession.terminalLogs);
+    }
+  }, [activeSession?.terminalLogs]);
 
 
 
@@ -386,16 +416,21 @@ function App() {
 
   // Execute command function
   const executeCommand = async () => {
+    if (!activeSession) return;
+
     // Get command from contentEditable element directly
     const command = commandInputRef.current?.textContent?.trim() || '';
 
     if (command) {
       const cmd = command;
 
-      // Add to command history (limit to last 100 commands)
-      const newHistory = [...commandHistory, cmd].slice(-100);
-      setCommandHistory(newHistory);
-      setHistoryIndex(-1);
+      // Add command to session's command history
+      const newHistory = [...activeSession.commandHistory, cmd].slice(-100);
+      setTerminalSessions(prev => prev.map(session =>
+        session.id === activeSession.id
+          ? { ...session, commandHistory: newHistory, historyIndex: -1 }
+          : session
+      ));
 
       // Save command to centralized history
       if (config.profileName) {
@@ -411,42 +446,105 @@ function App() {
         }
       }
 
+      // Create initial log entry with "Executing..." message
+      const executingLog: TerminalLog = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date(),
+        command: cmd,
+        output: '⏳ Executing...',
+        directory: activeSession.currentDirectory
+      };
+
+      // Add the executing log to the active session
+      setTerminalSessions(prev => prev.map(session =>
+        session.id === activeSession.id
+          ? { ...session, terminalLogs: [...session.terminalLogs, executingLog] }
+          : session
+      ));
+
       try {
-        // Get stored connection ID
-        const connectionId = localStorage.getItem('quantumxfer-connection-id');
+        // Get stored connection ID from the active session
+        const connectionId = activeSession.connectionId;
+        console.log('=== EXECUTING COMMAND ===');
+        console.log('Command:', cmd);
+        console.log('Connection ID:', connectionId);
+        console.log('Is Connected:', activeSession.isConnected);
+        console.log('Electron API available:', !!window.electronAPI);
+        console.log('SSH API available:', !!(window.electronAPI && window.electronAPI.ssh));
 
-        if (connectionId && window.electronAPI && window.electronAPI.ssh && isConnected) {
+        if (connectionId && window.electronAPI && window.electronAPI.ssh && activeSession.isConnected) {
+          console.log('=== EXECUTING REAL SSH COMMAND ===');
           // Execute real SSH command
-          addTerminalLog(cmd, '⏳ Executing...');
-
-          const result = await window.electronAPI.ssh.executeCommand(parseInt(connectionId), cmd);
+          const result = await window.electronAPI.ssh.executeCommand(connectionId, cmd);
+          console.log('SSH Command Result:', result);
 
           if (result.success) {
             let output = '';
             if (result.stdout) output += result.stdout;
             if (result.stderr) output += `\nError: ${result.stderr}`;
 
+            console.log('Command output:', output);
+
             // Update the last log entry with the real result
-            setTerminalLogs(prev => {
-              const updated = [...prev];
-              if (updated.length > 0) {
-                updated[updated.length - 1] = {
-                  ...updated[updated.length - 1],
+            setTerminalSessions(prev => prev.map(session => {
+              if (session.id === activeSession.id && session.terminalLogs.length > 0) {
+                const updatedLogs = [...session.terminalLogs];
+                const lastLogIndex = updatedLogs.length - 1;
+                updatedLogs[lastLogIndex] = {
+                  ...updatedLogs[lastLogIndex],
                   output: output
                 };
+                return { ...session, terminalLogs: updatedLogs };
               }
-              return updated;
-            });
+              return session;
+            }));
           } else {
-            addTerminalLog(cmd, `❌ Error: ${result.error}`);
+            console.log('Command failed:', result.error);
+            // Update the last log entry with error
+            setTerminalSessions(prev => prev.map(session => {
+              if (session.id === activeSession.id && session.terminalLogs.length > 0) {
+                const updatedLogs = [...session.terminalLogs];
+                const lastLogIndex = updatedLogs.length - 1;
+                updatedLogs[lastLogIndex] = {
+                  ...updatedLogs[lastLogIndex],
+                  output: `❌ Error: ${result.error}`
+                };
+                return { ...session, terminalLogs: updatedLogs };
+              }
+              return session;
+            }));
           }
         } else {
-          // Simulation mode
-          addTerminalLog(cmd, `🔧 Simulation: ${cmd} executed`);
+          console.log('=== FALLBACK TO SIMULATION MODE ===');
+          // Simulation mode - update the last log entry
+          setTerminalSessions(prev => prev.map(session => {
+            if (session.id === activeSession.id && session.terminalLogs.length > 0) {
+              const updatedLogs = [...session.terminalLogs];
+              const lastLogIndex = updatedLogs.length - 1;
+              updatedLogs[lastLogIndex] = {
+                ...updatedLogs[lastLogIndex],
+                output: `🔧 Simulation: ${cmd} executed`
+              };
+              return { ...session, terminalLogs: updatedLogs };
+            }
+            return session;
+          }));
         }
       } catch (error) {
         console.error('Error executing command:', error);
-        addTerminalLog(cmd, `❌ Error: ${error}`);
+        // Update the last log entry with error
+        setTerminalSessions(prev => prev.map(session => {
+          if (session.id === activeSession.id && session.terminalLogs.length > 0) {
+            const updatedLogs = [...session.terminalLogs];
+            const lastLogIndex = updatedLogs.length - 1;
+            updatedLogs[lastLogIndex] = {
+              ...updatedLogs[lastLogIndex],
+              output: `❌ Error: ${error}`
+            };
+            return { ...session, terminalLogs: updatedLogs };
+          }
+          return session;
+        }));
       }
 
       // Clear the command input
@@ -471,20 +569,26 @@ function App() {
 
   // Handle command key down
   const handleCommandKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+    if (!activeSession) return;
+
     if (e.key === 'Enter') {
       e.preventDefault();
       executeCommand();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (commandHistory.length > 0) {
-        const newIndex = historyIndex === -1 ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
-        setHistoryIndex(newIndex);
+      if (activeSession.commandHistory.length > 0) {
+        const newIndex = activeSession.historyIndex === -1 ? activeSession.commandHistory.length - 1 : Math.max(0, activeSession.historyIndex - 1);
+        setTerminalSessions(prev => prev.map(session =>
+          session.id === activeSession.id
+            ? { ...session, historyIndex: newIndex }
+            : session
+        ));
         // Update the contentEditable element without triggering re-renders
         if (commandInputRef.current) {
           // Use requestAnimationFrame to ensure DOM is updated
           requestAnimationFrame(() => {
             if (commandInputRef.current) {
-              commandInputRef.current.textContent = commandHistory[newIndex];
+              commandInputRef.current.textContent = activeSession.commandHistory[newIndex];
               // Move cursor to end
               const range = document.createRange();
               const selection = window.getSelection();
@@ -498,10 +602,14 @@ function App() {
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (historyIndex >= 0) {
-        const newIndex = historyIndex + 1;
-        if (newIndex >= commandHistory.length) {
-          setHistoryIndex(-1);
+      if (activeSession.historyIndex >= 0) {
+        const newIndex = activeSession.historyIndex + 1;
+        if (newIndex >= activeSession.commandHistory.length) {
+          setTerminalSessions(prev => prev.map(session =>
+            session.id === activeSession.id
+              ? { ...session, historyIndex: -1 }
+              : session
+          ));
           if (commandInputRef.current) {
             requestAnimationFrame(() => {
               if (commandInputRef.current) {
@@ -510,11 +618,15 @@ function App() {
             });
           }
         } else {
-          setHistoryIndex(newIndex);
+          setTerminalSessions(prev => prev.map(session =>
+            session.id === activeSession.id
+              ? { ...session, historyIndex: newIndex }
+              : session
+          ));
           if (commandInputRef.current) {
             requestAnimationFrame(() => {
               if (commandInputRef.current) {
-                commandInputRef.current.textContent = commandHistory[newIndex];
+                commandInputRef.current.textContent = activeSession.commandHistory[newIndex];
                 // Move cursor to end
                 const range = document.createRange();
                 const selection = window.getSelection();
@@ -600,14 +712,39 @@ function App() {
             }
           }
 
-          // Add connection log
-          addTerminalLog('ssh-connect', `✅ Successfully connected to ${config.username}@${config.host}:${config.port}`);
-          setNotification({ message: `Connected to ${result.serverInfo?.host}`, type: 'success' });
-          
-          // Update window title with connection info
-          document.title = `QuantumXfer - ${config.username}@${config.host}`;
-          
-          saveSession();
+          // Create new terminal session
+          const newSession: TerminalSession = {
+            id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            config: { ...config },
+            terminalLogs: [],
+            commandHistory: [],
+            historyIndex: -1,
+            currentDirectory: '/home',
+            sessionId: newSessionId,
+            isConnected: true,
+            connectionId: result.connectionId
+          };
+
+          setTerminalSessions(prev => [...prev, newSession]);
+          setActiveSessionId(newSession.id);
+
+          // Add connection log to the new session
+          setTimeout(() => {
+            setTerminalSessions(prev => prev.map(session =>
+              session.id === newSession.id
+                ? {
+                    ...session,
+                    terminalLogs: [{
+                      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                      timestamp: new Date(),
+                      command: 'ssh-connect',
+                      output: `✅ Successfully connected to ${config.username}@${config.host}:${config.port}`,
+                      directory: '/home'
+                    }]
+                  }
+                : session
+            ));
+          }, 100);
 
           // Switch to terminal tab after successful connection
           setActiveTab('terminal');
@@ -674,11 +811,9 @@ function App() {
         const result = await window.electronAPI.loadCommandHistory();
         if (result.success && result.commands) {
           setCommandHistory(result.commands);
-          setHistoryIndex(-1);
           console.log('Loaded global command history from file:', profile.name, '- Commands:', result.commands.length);
         } else {
           setCommandHistory([]);
-          setHistoryIndex(-1);
           console.log('No global command history found for profile:', profile.name);
         }
       }
@@ -1117,8 +1252,73 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'terminal' && isConnected && (
+        {activeTab === 'terminal' && terminalSessions.length > 0 && (
           <div>
+            {/* Terminal Sessions Tabs */}
+            <div style={{
+              backgroundColor: '#1e293b',
+              borderBottom: '1px solid #334155',
+              padding: '0 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0'
+            }}>
+              {terminalSessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => setActiveSessionId(session.id)}
+                  style={{
+                    padding: '12px 20px',
+                    backgroundColor: activeSessionId === session.id ? '#3b82f6' : 'transparent',
+                    color: 'white',
+                    border: 'none',
+                    borderBottom: activeSessionId === session.id ? '3px solid #60a5fa' : '3px solid transparent',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    position: 'relative'
+                  }}
+                >
+                  <span>💻</span>
+                  <span>{session.config.username}@{session.config.host}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Close session
+                      setTerminalSessions(prev => prev.filter(s => s.id !== session.id));
+                      if (activeSessionId === session.id) {
+                        const remainingSessions = terminalSessions.filter(s => s.id !== session.id);
+                        setActiveSessionId(remainingSessions.length > 0 ? remainingSessions[0].id : null);
+                      }
+                    }}
+                    style={{
+                      marginLeft: '0.5rem',
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      padding: '2px',
+                      borderRadius: '2px'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                  >
+                    ✕
+                  </button>
+                </button>
+              ))}
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  {terminalSessions.length} session{terminalSessions.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
             {/* Terminal Tab Content */}
             <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', padding: '1rem' }}>
               <style>{`
@@ -1164,7 +1364,7 @@ function App() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ fontSize: '1rem' }}>🟦</span>
                   <span style={{ color: 'white', fontSize: '0.9rem', fontWeight: '500' }}>
-                    Windows PowerShell - {config.username}@{config.host}:{config.port}
+                    Windows PowerShell - {activeSession ? `${activeSession.config.username}@${activeSession.config.host}:${activeSession.config.port}` : 'No Active Session'}
                   </span>
                 </div>
 
@@ -1222,10 +1422,10 @@ function App() {
                     ref={terminalRef}
                   >
                     {/* Terminal History */}
-                    {terminalLogs.map((log) => (
+                    {(activeSession?.terminalLogs || []).map((log) => (
                       <div key={log.id} style={{ marginBottom: '0.5rem' }}>
                         <div style={{ color: '#3b82f6', fontWeight: 'bold' }}>
-                          {config.username}@{config.host}:{config.port}{log.directory || currentDirectory}$ {log.command}
+                          {activeSession ? `${activeSession.config.username}@${activeSession.config.host}:${activeSession.config.port}${log.directory}$ ${log.command}` : ''}
                         </div>
                         {log.output && (
                           <div style={{ color: '#94a3b8', whiteSpace: 'pre-wrap' }}>{log.output}</div>
@@ -1236,7 +1436,7 @@ function App() {
                     {/* Current Command Line */}
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                       <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>
-                        {config.username}@{config.host}:{config.port}{currentDirectory}$
+                        {activeSession ? `${activeSession.config.username}@${activeSession.config.host}:${activeSession.config.port}${activeSession.currentDirectory}$` : 'No active session'}
                       </span>
                       <span
                         style={{
@@ -1257,8 +1457,8 @@ function App() {
                         onInput={handleCommandInputChange}
                         onKeyDown={handleCommandKeyDown}
                         ref={commandInputRef}
-                        data-placeholder={commandHistory.length > 0
-                          ? `Type command... (${commandHistory.length} in global history, ↑↓ to navigate)`
+                        data-placeholder={activeSession && activeSession.commandHistory.length > 0
+                          ? `Type command... (${activeSession.commandHistory.length} in session history, ↑↓ to navigate)`
                           : `Type command...`}
                       />
                       <span
@@ -1330,7 +1530,15 @@ function App() {
                     📁 Select Logs Directory
                   </button>
                   <button
-                    onClick={() => setTerminalLogs([])}
+                    onClick={() => {
+                      if (activeSession) {
+                        setTerminalSessions(prev => prev.map(session =>
+                          session.id === activeSession.id
+                            ? { ...session, terminalLogs: [] }
+                            : session
+                        ));
+                      }
+                    }}
                     style={{
                       padding: '0.5rem 1rem',
                       backgroundColor: '#64748b',
