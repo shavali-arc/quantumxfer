@@ -890,69 +890,179 @@ function App() {
           </span>
         </div>
 
-        {/* Navigation Tabs */}
-        <div style={{ padding: '1rem 0', flex: 1 }}>
-          <button
-            onClick={() => setActiveTab('connection')}
-            style={{
-              width: '100%',
-              padding: '16px 20px',
-              backgroundColor: activeTab === 'connection' ? '#3b82f6' : 'transparent',
-              color: 'white',
-              border: 'none',
-              borderLeft: activeTab === 'connection' ? '4px solid #60a5fa' : '4px solid transparent',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'all 0.2s ease',
-              textAlign: 'left',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem'
-            }}
-          >
-            <span>🔗</span>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span>Connection</span>
-              {isConnected && (
-                <span style={{ fontSize: '11px', opacity: 0.8, fontWeight: 'normal' }}>
-                  {config.username}@{config.host}
-                </span>
-              )}
+        {/* Navigation Sections */}
+        <div style={{ padding: '1rem 0', flex: 1, overflowY: 'auto' }}>
+          {/* MAIN Section */}
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{
+              padding: '0.5rem 1rem',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              color: '#64748b',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              marginBottom: '0.5rem'
+            }}>
+              Main
             </div>
-          </button>
+            <button
+              onClick={() => setActiveTab('connection')}
+              style={{
+                width: '100%',
+                padding: '16px 20px',
+                backgroundColor: activeTab === 'connection' ? '#3b82f6' : 'transparent',
+                color: 'white',
+                border: 'none',
+                borderLeft: activeTab === 'connection' ? '4px solid #60a5fa' : '4px solid transparent',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                borderRadius: '0 8px 8px 0',
+                marginBottom: '0.25rem'
+              }}
+            >
+              <span>🔗</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>Connection</span>
+                {isConnected && (
+                  <span style={{ fontSize: '11px', opacity: 0.8, fontWeight: 'normal' }}>
+                    {config.username}@{config.host}
+                  </span>
+                )}
+              </div>
+            </button>
+          </div>
 
-          <button
-            onClick={() => setActiveTab('terminal')}
-            disabled={!isConnected}
-            style={{
-              width: '100%',
-              padding: '16px 20px',
-              backgroundColor: activeTab === 'terminal' ? '#3b82f6' : 'transparent',
-              color: isConnected ? 'white' : '#64748b',
-              border: 'none',
-              borderLeft: activeTab === 'terminal' ? '4px solid #60a5fa' : '4px solid transparent',
-              cursor: isConnected ? 'pointer' : 'not-allowed',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'all 0.2s ease',
-              textAlign: 'left',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              opacity: isConnected ? 1 : 0.5
-            }}
-          >
-            <span>💻</span>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span>Terminal</span>
-              {isConnected && (
-                <span style={{ fontSize: '11px', opacity: 0.8, fontWeight: 'normal' }}>
-                  {config.username}@{config.host}
-                </span>
-              )}
+          {/* TERMINALS Section */}
+          <div>
+            <div style={{
+              padding: '0.5rem 1rem',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              color: '#64748b',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              marginBottom: '0.5rem'
+            }}>
+              Terminals
             </div>
-          </button>
+            <button
+              onClick={() => setActiveTab('terminal')}
+              disabled={!isConnected}
+              style={{
+                width: '100%',
+                padding: '16px 20px',
+                backgroundColor: activeTab === 'terminal' ? '#3b82f6' : 'transparent',
+                color: isConnected ? 'white' : '#64748b',
+                border: 'none',
+                borderLeft: activeTab === 'terminal' ? '4px solid #60a5fa' : '4px solid transparent',
+                cursor: isConnected ? 'pointer' : 'not-allowed',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                borderRadius: '0 8px 8px 0',
+                marginBottom: '0.25rem',
+                opacity: isConnected ? 1 : 0.5
+              }}
+            >
+              <span>💻</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>Terminal</span>
+                {isConnected && (
+                  <span style={{ fontSize: '11px', opacity: 0.8, fontWeight: 'normal' }}>
+                    {config.username}@{config.host}
+                  </span>
+                )}
+              </div>
+            </button>
+
+            {/* Terminal Sessions Sub-section */}
+            {terminalSessions.length > 0 && (
+              <div style={{ marginTop: '1rem', paddingLeft: '1rem' }}>
+                <div style={{
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  color: '#94a3b8',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginBottom: '0.5rem'
+                }}>
+                  Sessions ({terminalSessions.length})
+                </div>
+                {terminalSessions.map((session) => (
+                  <button
+                    key={session.id}
+                    onClick={() => {
+                      setActiveTab('terminal');
+                      setActiveSessionId(session.id);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      backgroundColor: activeSessionId === session.id ? '#1e40af' : 'transparent',
+                      color: '#cbd5e1',
+                      border: 'none',
+                      borderLeft: activeSessionId === session.id ? '3px solid #60a5fa' : '3px solid transparent',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: '400',
+                      transition: 'all 0.2s ease',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      borderRadius: '0 6px 6px 0',
+                      marginBottom: '0.125rem',
+                      opacity: 0.8
+                    }}
+                  >
+                    <span style={{ fontSize: '10px' }}>●</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span style={{ fontSize: '11px', fontWeight: '500' }}>
+                        {session.config.username}@{session.config.host}
+                      </span>
+                      <span style={{ fontSize: '9px', opacity: 0.7 }}>
+                        {session.config.port}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTerminalSessions(prev => prev.filter(s => s.id !== session.id));
+                        if (activeSessionId === session.id) {
+                          const remainingSessions = terminalSessions.filter(s => s.id !== session.id);
+                          setActiveSessionId(remainingSessions.length > 0 ? remainingSessions[0].id : null);
+                        }
+                      }}
+                      style={{
+                        marginLeft: 'auto',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        fontSize: '10px',
+                        padding: '2px',
+                        borderRadius: '2px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                    >
+                      ✕
+                    </button>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Status Footer */}
