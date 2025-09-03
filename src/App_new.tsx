@@ -951,40 +951,6 @@ function App() {
             }}>
               Terminals
             </div>
-            <button
-              onClick={() => setActiveTab('terminal')}
-              disabled={!isConnected}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                backgroundColor: activeTab === 'terminal' ? '#3b82f6' : 'transparent',
-                color: isConnected ? 'white' : '#64748b',
-                border: 'none',
-                borderLeft: activeTab === 'terminal' ? '4px solid #60a5fa' : '4px solid transparent',
-                cursor: isConnected ? 'pointer' : 'not-allowed',
-                fontSize: '14px',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                borderRadius: '0 8px 8px 0',
-                marginBottom: '0.25rem',
-                opacity: isConnected ? 1 : 0.5
-              }}
-            >
-              <span>💻</span>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span>Terminal</span>
-                {isConnected && (
-                  <span style={{ fontSize: '11px', opacity: 0.8, fontWeight: 'normal' }}>
-                    {config.username}@{config.host}
-                  </span>
-                )}
-              </div>
-            </button>
-
             {/* Terminal Sessions Sub-section */}
             {terminalSessions.length > 0 && (
               <div style={{ marginTop: '1rem', paddingLeft: '1rem' }}>
