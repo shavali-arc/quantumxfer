@@ -82,89 +82,25 @@
       }
     ],
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "verifyUpdateCodeSignature": false,
-      "forceCodeSigning": false,
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": false,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "QuantumXfer Enterprise"
-    },
-    "portable": {
-      "artifactName": "${productName}-${version}-portable.${ext}"
+      "target": "dir"
     },
     "linux": {
       "target": [
         {
           "target": "AppImage",
           "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "rpm",
-          "arch": [
-            "x64",
-            "arm64"
+            "x64"
           ]
         },
         {
           "target": "tar.gz",
           "arch": [
-            "x64",
-            "arm64"
+            "x64"
           ]
         }
       ],
       "category": "Network",
-      "description": "Professional SSH/SFTP Client with Enterprise-Grade Security and Management",
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
-    },
-    "deb": {
-      "priority": "optional",
-      "depends": [
-        "gconf2",
-        "gconf-service",
-        "libnotify4",
-        "libappindicator1",
-        "libxtst6",
-        "libnss3"
-      ]
-    },
-    "rpm": {
-      "depends": [
-        "libXScrnSaver",
-        "libnotify",
-        "nss"
-      ]
+      "description": "Professional SSH/SFTP Client with Enterprise-Grade Security and Management"
     },
     "mac": {
       "target": [
@@ -179,11 +115,6 @@
       "icon": "assets/icon.icns",
       "category": "public.app-category.developer-tools",
       "artifactName": "${productName}-${version}-${arch}.${ext}"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "quantumxfer",
-      "repo": "quantumxfer-enterprise"
     }
   }
 }
