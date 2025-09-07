@@ -1752,7 +1752,7 @@ function App() {
                   <div
                     className="powershell-scrollbar"
                     style={{
-                      height: '400px',
+                      height: '600px',
                       overflowY: 'auto',
                       padding: '1rem',
                       fontFamily: 'Consolas, Monaco, "Courier New", monospace',
@@ -2083,7 +2083,7 @@ function App() {
                   )}
 
                   {/* File List */}
-                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
                     {remoteFiles.length === 0 ? (
                       <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
                         {isConnected ? 'No files in this directory' : 'Connect to a server to browse files'}
