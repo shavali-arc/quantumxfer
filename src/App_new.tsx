@@ -1747,7 +1747,7 @@ function App() {
 
               {/* Terminal Content */}
               {terminalMode === 'ssh' ? (
-                <div style={{ backgroundColor: '#012456', borderRadius: '8px', border: '1px solid #1e40af', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: '#000000', borderRadius: '8px', border: '1px solid #1e40af', overflow: 'hidden' }}>
                   {/* Traditional Terminal Interface */}
                   <div
                     className="powershell-scrollbar"
@@ -1758,7 +1758,7 @@ function App() {
                       fontFamily: 'Consolas, Monaco, "Courier New", monospace',
                       fontSize: '14px',
                       lineHeight: '1.4',
-                      backgroundColor: '#012456',
+                      backgroundColor: '#000000',
                       color: '#f1f5f9'
                     }}
                     tabIndex={0}
