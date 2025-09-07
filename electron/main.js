@@ -389,6 +389,15 @@ ipcMain.handle('ssh-list-directory', async (event, connectionId, remotePath) => 
   }
 });
 
+ipcMain.handle('ssh-list-directory-recursive', async (event, connectionId, remotePath, options) => {
+  try {
+    const result = await sshService.listDirectoryRecursive(connectionId, remotePath, options);
+    return result;
+  } catch (error) {
+    return error;
+  }
+});
+
 ipcMain.handle('ssh-download-file', async (event, connectionId, remotePath, localPath) => {
   try {
     const result = await sshService.downloadFile(connectionId, remotePath, localPath);

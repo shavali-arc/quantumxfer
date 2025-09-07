@@ -123,13 +123,22 @@ function App() {
   }, [selectedLogsDirectory, terminalLogs]);
 
   // Enterprise features state
-  const [_searchQuery, _setSearchQuery] = useState('');
   const [_showFavoritesOnly, _setShowFavoritesOnly] = useState(false);
   const [_sortBy, _setSortBy] = useState<'lastUsed' | 'name' | 'frequency'>('lastUsed');
 
   // SFTP state
   const [remoteFiles, setRemoteFiles] = useState<SFTPFile[]>([]);
   const [remotePath, setRemotePath] = useState('/home/work');
+
+  // SFTP Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilter, setSearchFilter] = useState<'all' | 'files' | 'directories'>('all');
+  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'medium' | 'large'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [useRegex, setUseRegex] = useState(false);
+  const [useRecursiveSearch, setUseRecursiveSearch] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [filteredFiles, setFilteredFiles] = useState<SFTPFile[]>([]);
 
   // Load saved data on component mount
   useEffect(() => {
@@ -859,6 +868,11 @@ function App() {
         if (result.success && result.files) {
           setRemoteFiles(result.files);
           setRemotePath(path);
+          console.log('📁 SFTP Files Loaded:', {
+            path,
+            fileCount: result.files.length,
+            files: result.files.map(f => ({ name: f.name, type: f.type, size: f.size }))
+          });
           addTerminalLog('sftp-ls', `Listed directory: ${path} (${result.files.length} items)`);
         } else {
           setNotification({ message: `Failed to list directory: ${result.error}`, type: 'error' });
@@ -870,6 +884,153 @@ function App() {
       setNotification({ message: 'Failed to load SFTP files', type: 'error' });
     }
   };
+
+  // SFTP Search and Filter Functions
+  const filterFiles = (files: SFTPFile[], query: string, filter: string, size: string, date: string, regex: boolean) => {
+    console.log('🔍 filterFiles called with:', { filesCount: files.length, query, filter, size, date, regex });
+
+    return files.filter(file => {
+      // Type filter
+      if (filter === 'files' && file.type !== 'file') return false;
+      if (filter === 'directories' && file.type !== 'directory') return false;
+
+      // Size filter
+      if (size !== 'all') {
+        const fileSize = file.size;
+        if (size === 'small' && fileSize >= 1024 * 1024) return false; // > 1MB
+        if (size === 'medium' && (fileSize < 1024 * 1024 || fileSize >= 100 * 1024 * 1024)) return false; // 1MB - 100MB
+        if (size === 'large' && fileSize < 100 * 1024 * 1024) return false; // < 100MB
+      }
+
+      // Date filter
+      if (date !== 'all') {
+        const fileDate = new Date(file.modified);
+        const now = new Date();
+        const diffTime = now.getTime() - fileDate.getTime();
+        const diffDays = diffTime / (1000 * 3600 * 24);
+
+        if (date === 'today' && diffDays >= 1) return false;
+        if (date === 'week' && diffDays >= 7) return false;
+        if (date === 'month' && diffDays >= 30) return false;
+      }
+
+      // Search query
+      if (query.trim()) {
+        const searchTerm = query.toLowerCase();
+        const fileName = file.name.toLowerCase();
+
+        if (regex) {
+          try {
+            const regexPattern = new RegExp(searchTerm, 'i');
+            return regexPattern.test(fileName);
+          } catch (error) {
+            // Invalid regex, fall back to simple search
+            return fileName.includes(searchTerm);
+          }
+        } else {
+          // Support wildcards (* and ?)
+          if (searchTerm.includes('*') || searchTerm.includes('?')) {
+            const pattern = searchTerm
+              .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+              .replace(/\*/g, '.*') // * matches any sequence
+              .replace(/\?/g, '.'); // ? matches any single char
+            try {
+              const regex = new RegExp(`^${pattern}$`, 'i');
+              return regex.test(fileName);
+            } catch (error) {
+              return fileName.includes(searchTerm.replace(/[*?]/g, ''));
+            }
+          } else {
+            return fileName.includes(searchTerm);
+          }
+        }
+      }
+
+      return true;
+    });
+  };
+
+  // Recursive search function
+  const performRecursiveSearch = async (query: string) => {
+    if (!isConnected || !activeSession?.connectionId || !query.trim()) {
+      return remoteFiles;
+    }
+
+    setIsSearching(true);
+    try {
+      if (window.electronAPI && window.electronAPI.ssh && window.electronAPI.ssh.listDirectoryRecursive) {
+        const result = await window.electronAPI.ssh.listDirectoryRecursive(
+          activeSession.connectionId,
+          remotePath,
+          {
+            maxDepth: 5,
+            maxFiles: 500,
+            includeHidden: true
+          }
+        );
+
+        if (result.success && result.files) {
+          console.log('🔍 Recursive search results:', {
+            totalFiles: result.totalFiles,
+            truncated: result.truncated,
+            files: result.files.slice(0, 10) // Log first 10 results
+          });
+
+          // Apply filters to the recursive results
+          const filtered = filterFiles(result.files, query, searchFilter, sizeFilter, dateFilter, useRegex);
+          return filtered;
+        } else {
+          console.error('Recursive search failed:', result.error);
+          return remoteFiles; // Fallback to current directory
+        }
+      }
+    } catch (error) {
+      console.error('Recursive search error:', error);
+      return remoteFiles; // Fallback to current directory
+    } finally {
+      setIsSearching(false);
+    }
+
+    return remoteFiles;
+  };
+
+  // Update filtered files when search criteria change
+  useEffect(() => {
+    const updateFilteredFiles = async () => {
+      if (searchQuery.trim() && useRecursiveSearch) {
+        // Use recursive search
+        const results = await performRecursiveSearch(searchQuery);
+        setFilteredFiles(results);
+      } else {
+        // Use regular filtering
+        const filtered = filterFiles(remoteFiles, searchQuery, searchFilter, sizeFilter, dateFilter, useRegex);
+        setFilteredFiles(filtered);
+      }
+    };
+
+    updateFilteredFiles();
+
+    // Debug logging
+    if (searchQuery.trim() || remoteFiles.length > 0) {
+      console.log('🔍 Search Debug:', {
+        searchQuery,
+        useRecursiveSearch,
+        useRegex,
+        remoteFilesCount: remoteFiles.length,
+        filteredCount: filteredFiles.length,
+        remoteFiles: remoteFiles.slice(0, 5).map(f => ({ name: f.name, type: f.type })),
+        filteredFiles: filteredFiles.slice(0, 5).map(f => ({ name: f.name, type: f.type }))
+      });
+    }
+  }, [remoteFiles, searchQuery, searchFilter, sizeFilter, dateFilter, useRegex, useRecursiveSearch]);
+
+  // Initialize filtered files with remote files on mount
+  useEffect(() => {
+    if (remoteFiles.length > 0 && filteredFiles.length === 0 && !searchQuery.trim()) {
+      setFilteredFiles(remoteFiles);
+      console.log('📁 Initializing filtered files with remote files:', remoteFiles.length);
+    }
+  }, [remoteFiles, filteredFiles.length, searchQuery]);
 
   const downloadFile = async (file: SFTPFile) => {
     if (!isConnected || !activeSession?.connectionId) {
@@ -942,8 +1103,9 @@ function App() {
     }
   };
 
-  const navigateToDirectory = (path: string) => {
-    loadSFTPFiles(path);
+  const navigateToDirectory = (fileName: string) => {
+    const newPath = remotePath === '/' ? `/${fileName}` : `${remotePath}/${fileName}`;
+    loadSFTPFiles(newPath);
   };
 
   const goToParentDirectory = () => {
@@ -969,6 +1131,10 @@ function App() {
           @keyframes blink {
             0%, 50% { opacity: 1; }
             51%, 100% { opacity: 0; }
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
           }
         `}
       </style>
@@ -1070,7 +1236,7 @@ function App() {
                   Sessions ({terminalSessions.length})
                 </div>
                 {terminalSessions.map((session) => (
-                  <button
+                  <div
                     key={session.id}
                     onClick={() => {
                       setActiveTab('terminal');
@@ -1129,7 +1295,7 @@ function App() {
                     >
                       ✕
                     </button>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -1716,15 +1882,219 @@ function App() {
                     </div>
                   </div>
 
+                  {/* Search and Filter Bar */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: '#1e293b',
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    border: '1px solid #334155'
+                  }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Search files and folders... (supports * and ? wildcards)"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          console.log('🔍 Search input changed:', { oldValue: searchQuery, newValue });
+                          setSearchQuery(newValue);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            console.log('🔍 Enter pressed, triggering search for:', searchQuery);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '0.5rem',
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #334155',
+                          borderRadius: '4px',
+                          color: '#f1f5f9',
+                          fontSize: '0.9rem'
+                        }}
+                      />
+                      <button
+                        onClick={() => setUseRegex(!useRegex)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: useRegex ? '#3b82f6' : '#374151',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Toggle regex search mode"
+                      >
+                        {useRegex ? '🔍 Regex' : '🔍 Text'}
+                      </button>
+                      <button
+                        onClick={() => setUseRecursiveSearch(!useRecursiveSearch)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: useRecursiveSearch ? '#10b981' : '#374151',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Toggle recursive search in subdirectories"
+                      >
+                        {useRecursiveSearch ? '🔄 Recursive' : '📁 Current Dir'}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <select
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value as 'all' | 'files' | 'directories')}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #334155',
+                          borderRadius: '4px',
+                          color: '#f1f5f9',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        <option value="all">All Types</option>
+                        <option value="files">Files Only</option>
+                        <option value="directories">Folders Only</option>
+                      </select>
+
+                      <select
+                        value={sizeFilter}
+                        onChange={(e) => setSizeFilter(e.target.value as 'all' | 'small' | 'medium' | 'large')}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #334155',
+                          borderRadius: '4px',
+                          color: '#f1f5f9',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        <option value="all">Any Size</option>
+                        <option value="small">Small (&lt; 1MB)</option>
+                        <option value="medium">Medium (1MB - 100MB)</option>
+                        <option value="large">Large (&gt; 100MB)</option>
+                      </select>
+
+                      <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value as 'all' | 'today' | 'week' | 'month')}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #334155',
+                          borderRadius: '4px',
+                          color: '#f1f5f9',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        <option value="all">Any Date</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                      </select>
+
+                      {(searchQuery || searchFilter !== 'all' || sizeFilter !== 'all' || dateFilter !== 'all') && (
+                        <button
+                          onClick={() => {
+                            setSearchQuery('');
+                            setSearchFilter('all');
+                            setSizeFilter('all');
+                            setDateFilter('all');
+                            setUseRegex(false);
+                          }}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#dc2626',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          Clear Filters
+                        </button>
+                      )}
+                    </div>
+
+                    {searchQuery && (
+                      <div style={{
+                        marginTop: '0.5rem',
+                        fontSize: '0.8rem',
+                        color: '#94a3b8'
+                      }}>
+                        {isSearching ? (
+                          <span style={{ color: '#f59e0b' }}>
+                            🔍 Searching for: "{searchQuery}"...
+                          </span>
+                        ) : (
+                          <span>
+                            Found {filteredFiles.length} of {remoteFiles.length} items for: "{searchQuery}"
+                          </span>
+                        )}
+                        {useRegex && (
+                          <span style={{ marginLeft: '1rem', color: '#3b82f6' }}>
+                            Using regex pattern
+                          </span>
+                        )}
+                        {useRecursiveSearch && (
+                          <span style={{ marginLeft: '1rem', color: '#10b981' }}>
+                            Recursive search enabled
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Loading Indicator */}
+                  {isSearching && (
+                    <div style={{
+                      padding: '0.5rem',
+                      backgroundColor: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: '4px',
+                      color: '#f1f5f9',
+                      fontSize: '0.9rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginBottom: '1rem'
+                    }}>
+                      <div style={{
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid #3b82f6',
+                        borderTop: '2px solid transparent',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                      }}></div>
+                      Searching {useRecursiveSearch ? 'recursively through subdirectories' : 'in current directory'}...
+                    </div>
+                  )}
+
                   {/* File List */}
                   <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                     {remoteFiles.length === 0 ? (
                       <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
                         {isConnected ? 'No files in this directory' : 'Connect to a server to browse files'}
                       </div>
+                    ) : filteredFiles.length === 0 && searchQuery.trim() ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                        No files match your search criteria: "{searchQuery}"
+                      </div>
                     ) : (
                       <div style={{ display: 'grid', gap: '0.25rem', padding: '0.5rem' }}>
-                        {remoteFiles.map((file, index) => (
+                        {filteredFiles.map((file, index) => (
                           <div
                             key={index}
                             style={{
@@ -1737,7 +2107,7 @@ function App() {
                               border: '1px solid #334155',
                               cursor: file.type === 'directory' ? 'pointer' : 'default'
                             }}
-                            onClick={() => file.type === 'directory' && navigateToDirectory(file.path)}
+                            onClick={() => file.type === 'directory' && navigateToDirectory(file.path && useRecursiveSearch ? file.path : file.name)}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
                               <span style={{ fontSize: '1rem' }}>
@@ -1751,8 +2121,20 @@ function App() {
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis'
                                 }}>
-                                  {file.name}
+                                  {file.path && useRecursiveSearch ? file.path : file.name}
                                 </div>
+                                {file.path && useRecursiveSearch && (
+                                  <div style={{
+                                    color: '#64748b',
+                                    fontSize: '0.7rem',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    marginTop: '0.1rem'
+                                  }}>
+                                    {file.name}
+                                  </div>
+                                )}
                                 <div style={{
                                   color: '#94a3b8',
                                   fontSize: '0.7rem',

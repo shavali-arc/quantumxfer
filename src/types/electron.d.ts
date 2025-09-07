@@ -15,6 +15,7 @@ export interface ElectronAPI {
     connect: (config: SSHConfig) => Promise<SSHConnectionResult>;
     executeCommand: (connectionId: number, command: string) => Promise<SSHCommandResult>;
     listDirectory: (connectionId: number, remotePath?: string) => Promise<SSHDirectoryResult>;
+    listDirectoryRecursive: (connectionId: number, remotePath?: string, options?: any) => Promise<SSHDirectoryResult>;
     downloadFile: (connectionId: number, remotePath: string, localPath: string) => Promise<SSHFileResult>;
     uploadFile: (connectionId: number, localPath: string, remotePath: string) => Promise<SSHFileResult>;
     disconnect: (connectionId: number) => Promise<SSHResult>;
@@ -91,6 +92,8 @@ export interface SSHDirectoryResult extends SSHResult {
     modified: Date;
     path: string;
   }>;
+  totalFiles?: number;
+  truncated?: boolean;
 }
 
 export interface SSHFileResult extends SSHResult {

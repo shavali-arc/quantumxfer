@@ -255,6 +255,91 @@ class SSHService {
   }
 
   /**
+   * Recursively list directory contents
+   * @param {number} connectionId - Connection ID
+   * @param {string} remotePath - Remote directory path to start from
+   * @param {Object} options - Search options
+   * @returns {Promise<Object>} Recursive directory listing
+   */
+  async listDirectoryRecursive(connectionId, remotePath = '.', options = {}) {
+    const { maxDepth = 10, maxFiles = 1000, includeHidden = true } = options;
+
+    try {
+      const sftpResult = await this.getSFTP(connectionId);
+      if (!sftpResult.success) {
+        return sftpResult;
+      }
+
+      const allFiles = [];
+      const processedDirs = new Set();
+      let totalFiles = 0;
+
+      const processDirectory = async (currentPath, currentDepth = 0) => {
+        if (currentDepth > maxDepth || totalFiles >= maxFiles) {
+          return;
+        }
+
+        if (processedDirs.has(currentPath)) {
+          return; // Avoid infinite loops with symlinks
+        }
+        processedDirs.add(currentPath);
+
+        try {
+          const dirResult = await this.listDirectory(connectionId, currentPath);
+          if (!dirResult.success) {
+            return; // Skip directories we can't read
+          }
+
+          for (const file of dirResult.files) {
+            // Skip hidden files/directories if not requested
+            if (!includeHidden && file.name.startsWith('.')) {
+              continue;
+            }
+
+            allFiles.push({
+              ...file,
+              relativePath: path.posix.relative(remotePath, file.path),
+              depth: currentDepth
+            });
+
+            totalFiles++;
+
+            // If it's a directory and we haven't exceeded limits, recurse
+            if (file.type === 'directory' && currentDepth < maxDepth && totalFiles < maxFiles) {
+              await processDirectory(file.path, currentDepth + 1);
+            }
+
+            // Break if we've hit the file limit
+            if (totalFiles >= maxFiles) {
+              break;
+            }
+          }
+        } catch (error) {
+          // Skip directories we can't access
+          console.warn(`Cannot access directory ${currentPath}:`, error.message);
+        }
+      };
+
+      await processDirectory(remotePath, 0);
+
+      return {
+        success: true,
+        path: remotePath,
+        files: allFiles,
+        totalFiles,
+        maxDepth,
+        truncated: totalFiles >= maxFiles
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.error || error.message,
+        code: error.code || 'UNKNOWN_ERROR'
+      };
+    }
+  }
+
+  /**
    * Download a file from remote server
    * @param {number} connectionId - Connection ID
    * @param {string} remotePath - Remote file path
