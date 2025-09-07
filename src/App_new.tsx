@@ -719,7 +719,7 @@ function App() {
             id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             config: { ...config },
             terminalLogs: [],
-            commandHistory: [],
+            commandHistory: [...commandHistory], // Use global command history
             historyIndex: -1,
             currentDirectory: '/home',
             sessionId: newSessionId,
