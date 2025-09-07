@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     connect: (config) => ipcRenderer.invoke('ssh-connect', config),
     executeCommand: (connectionId, command) => ipcRenderer.invoke('ssh-execute-command', connectionId, command),
     listDirectory: (connectionId, remotePath) => ipcRenderer.invoke('ssh-list-directory', connectionId, remotePath),
+    listDirectoryRecursive: (connectionId, remotePath, options) => ipcRenderer.invoke('ssh-list-directory-recursive', connectionId, remotePath, options),
     downloadFile: (connectionId, remotePath, localPath) => ipcRenderer.invoke('ssh-download-file', connectionId, remotePath, localPath),
     uploadFile: (connectionId, localPath, remotePath) => ipcRenderer.invoke('ssh-upload-file', connectionId, localPath, remotePath),
     disconnect: (connectionId) => ipcRenderer.invoke('ssh-disconnect', connectionId),
