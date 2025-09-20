@@ -466,6 +466,101 @@ ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
   }
 });
 
+// -----------------------------
+// Bookmarks: persistence helpers
+// -----------------------------
+function getBookmarksPath() {
+  const userDataPath = app.getPath('userData');
+  const bookmarksDir = path.join(userDataPath, 'bookmarks');
+  if (!fs.existsSync(bookmarksDir)) {
+    fs.mkdirSync(bookmarksDir, { recursive: true });
+  }
+  return path.join(bookmarksDir, 'bookmarks.json');
+}
+
+function readBookmarks() {
+  try {
+    const filePath = getBookmarksPath();
+    if (!fs.existsSync(filePath)) {
+      return [];
+    }
+    const data = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : (parsed.bookmarks || []);
+  } catch (err) {
+    console.error('Failed to read bookmarks:', err);
+    return [];
+  }
+}
+
+function writeBookmarks(bookmarks) {
+  try {
+    const filePath = getBookmarksPath();
+    fs.writeFileSync(filePath, JSON.stringify({ bookmarks }, null, 2), 'utf8');
+    return { success: true, filePath };
+  } catch (err) {
+    console.error('Failed to write bookmarks:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// -----------------------------
+// Bookmarks: IPC handlers
+// -----------------------------
+ipcMain.handle('bookmarks-list', async () => {
+  try {
+    const bookmarks = readBookmarks();
+    return { success: true, bookmarks };
+  } catch (error) {
+    return { success: false, error: error.message, bookmarks: [] };
+  }
+});
+
+ipcMain.handle('bookmarks-add', async (event, bookmark) => {
+  try {
+    const bookmarks = readBookmarks();
+    // Prevent duplicates: same type + server + path/host
+    const key = JSON.stringify({
+      type: bookmark.type,
+      server: bookmark.server || null,
+      path: bookmark.path || null
+    });
+    const exists = bookmarks.some(b => JSON.stringify({ type: b.type, server: b.server || null, path: b.path || null }) === key);
+    if (!exists) {
+      const id = bookmark.id || `bm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      bookmarks.push({
+        id,
+        type: bookmark.type, // 'directory' | 'server'
+        label: bookmark.label || (bookmark.type === 'directory' ? (bookmark.path || 'Directory') : (bookmark.server?.host || 'Server')),
+        createdAt: new Date().toISOString(),
+        server: bookmark.server || null,
+        path: bookmark.path || null
+      });
+      const result = writeBookmarks(bookmarks);
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+    }
+    return { success: true, bookmarks: readBookmarks() };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('bookmarks-remove', async (event, bookmarkId) => {
+  try {
+    const bookmarks = readBookmarks();
+    const filtered = bookmarks.filter(b => b.id !== bookmarkId);
+    const result = writeBookmarks(filtered);
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+    return { success: true, bookmarks: filtered };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Helper function to encrypt passwords in profiles
 function encryptProfiles(profiles) {
   if (!safeStorage.isEncryptionAvailable()) {
