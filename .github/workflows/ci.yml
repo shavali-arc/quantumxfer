@@ -54,8 +54,8 @@ jobs:
 
       - name: Electron builder (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: npx electron-builder --linux --dir
+        run: npx electron-builder --linux --dir -c.npmRebuild=false
 
       - name: Electron builder (Windows)
         if: matrix.os == 'windows-latest'
-        run: npx electron-builder --win --dir
+        run: npx electron-builder --win --dir -c.npmRebuild=false
