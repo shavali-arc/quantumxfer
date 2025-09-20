@@ -96,14 +96,14 @@ function App() {
     const initializeApp = async () => {
       console.log('=== APP USEEFFECT INIT ===');
       console.log('Current hash:', window.location.hash);
-      console.log('Window terminalData:', (window as any).terminalData);
+      console.log('Window terminalData:', (window as { terminalData?: unknown }).terminalData);
       console.log('localStorage terminalData:', localStorage.getItem('quantumxfer-terminal-data'));
       
       // Check if this is a terminal tab
       if (window.location.hash === '#terminal') {
         console.log('Terminal mode detected from hash');
         const terminalData = localStorage.getItem('quantumxfer-terminal-data');
-        const windowTerminalData = (window as any).terminalData;
+        const windowTerminalData = (window as { terminalData?: unknown }).terminalData;
         
         if (terminalData || windowTerminalData) {
           try {
@@ -152,7 +152,7 @@ function App() {
       if (savedLogs) {
         try {
           const logs = JSON.parse(savedLogs);
-          const logIds = logs.map((log: any) => log.id);
+          const logIds = logs.map((log: TerminalLog) => log.id);
           const hasDuplicates = logIds.length !== new Set(logIds).size;
           
           if (hasDuplicates) {
@@ -226,7 +226,7 @@ function App() {
               // Silently handle cleanup errors
             });
           }
-        } catch (error) {
+        } catch {
           // Silently handle cleanup errors
         }
       }
@@ -238,6 +238,7 @@ function App() {
         );
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLogsDirectory, terminalLogs, commandHistory]);
 
   // Load command history for current profile when connected
@@ -279,6 +280,7 @@ function App() {
         console.error('Error saving command history on disconnect:', error)
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, commandHistory]);
 
   // Load SFTP files when SFTP panel is opened
@@ -286,6 +288,7 @@ function App() {
     if (showSFTP && isConnected) {
       loadRemoteDirectory(remotePath);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSFTP, isConnected, remotePath]);
 
   // Keep terminal input focused when connected
@@ -316,7 +319,7 @@ function App() {
         const result = await window.electronAPI.loadProfilesFromFile();
         if (result.success && result.profiles) {
           // Convert lastUsed string back to Date object and ensure commandHistory exists
-          const profilesWithDates = result.profiles.map((profile: any) => ({
+          const profilesWithDates = result.profiles.map((profile: ConnectionProfile) => ({
             ...profile,
             lastUsed: new Date(profile.lastUsed),
             commandHistory: profile.commandHistory || [] // Ensure commandHistory exists
@@ -333,7 +336,7 @@ function App() {
       if (saved) {
         const parsedProfiles = JSON.parse(saved);
         // Convert lastUsed string back to Date object and ensure commandHistory exists
-        const profilesWithDates = parsedProfiles.map((profile: any) => ({
+        const profilesWithDates = parsedProfiles.map((profile: ConnectionProfile) => ({
           ...profile,
           lastUsed: new Date(profile.lastUsed),
           commandHistory: profile.commandHistory || [] // Ensure commandHistory exists
@@ -520,7 +523,7 @@ function App() {
               setRemotePath('/');
               addTerminalLog('sftp-ls', `Listed directory: ${dirResult.path}`);
             }
-          } catch (dirError) {
+          } catch {
             // Silently handle directory loading errors
           }
           
@@ -590,10 +593,11 @@ function App() {
         }
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Connection error:', error);
-      setNotification({ message: `Connection failed: ${error.message}`, type: 'error' });
-      addTerminalLog('ssh-error', `❌ Connection error: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setNotification({ message: `Connection failed: ${errorMessage}`, type: 'error' });
+      addTerminalLog('ssh-error', `❌ Connection error: ${errorMessage}`);
     }
   };
 
@@ -623,8 +627,9 @@ function App() {
       if (selectedLogsDirectory && terminalLogs.length > 0) {
         writeAllLogsToFile();
       }
-    } catch (error: any) {
-      addTerminalLog('ssh-disconnect', `❌ Disconnect error: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addTerminalLog('ssh-disconnect', `❌ Disconnect error: ${errorMessage}`);
       setIsConnected(false);
     }
   };
@@ -664,7 +669,7 @@ function App() {
           localStorage.setItem('quantumxfer-first-log-saved', 'true');
         }
       }
-    } catch (error) {
+    } catch {
       setNotification({ message: 'Failed to save log to file', type: 'error' });
     }
   };
@@ -685,7 +690,7 @@ function App() {
       } else {
         setNotification({ message: `Logs saved to: ${result.filename}`, type: 'success' });
       }
-    } catch (error) {
+    } catch {
       setNotification({ message: 'Failed to save logs to file', type: 'error' });
     }
   };
@@ -818,8 +823,9 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
         
         setCurrentCommand('');
         
-      } catch (error: any) {
-        addTerminalLog(cmd, `❌ Error: ${error.message}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        addTerminalLog(cmd, `❌ Error: ${errorMessage}`);
         setCurrentCommand('');
       }
     }
@@ -942,7 +948,7 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
         saveLogsDirectoryPreference(defaultLogsDir);
         setNotification({ message: `Logs directory set to: ${defaultLogsDir}`, type: 'success' });
       }
-    } catch (error) {
+    } catch {
       // Fallback: Use a default logs directory
       const defaultLogsDir = 'quantumxfer-logs';
       saveLogsDirectoryPreference(defaultLogsDir);
@@ -1022,11 +1028,13 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
       if (fileList) {
         filesToUpload = fileList;
       } else if ('showOpenFilePicker' in window) {
-        const fileHandles = await (window as any).showOpenFilePicker({ multiple: true });
+        const fileHandles = await (window as { showOpenFilePicker?: (options: { multiple: boolean }) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker?.({ multiple: true });
         
-        for (const fileHandle of fileHandles) {
-          const file = await fileHandle.getFile();
-          filesToUpload.push(file);
+        if (fileHandles) {
+          for (const fileHandle of fileHandles) {
+            const file = await fileHandle.getFile();
+            filesToUpload.push(file);
+          }
         }
       } else {
         setNotification({ message: 'File picker not supported in this browser', type: 'warning' });
@@ -1055,7 +1063,7 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
       
       setNotification({ message: `Uploaded ${filesToUpload.length} file(s)`, type: 'success' });
       loadRemoteDirectory(remotePath);
-    } catch (error) {
+    } catch {
       setNotification({ message: 'Error selecting files for upload', type: 'warning' });
     }
   };

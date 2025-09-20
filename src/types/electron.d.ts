@@ -4,18 +4,18 @@ export interface ElectronAPI {
   getVersion: () => Promise<string>;
   
   // File dialogs
-  showSaveDialog: (options: any) => Promise<any>;
-  showOpenDialog: (options: any) => Promise<any>;
+  showSaveDialog: (options: Electron.SaveDialogOptions) => Promise<Electron.SaveDialogReturnValue>;
+  showOpenDialog: (options: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;
   
   // Terminal window
-  openTerminalWindow: (terminalData: any) => Promise<{ success: boolean }>;
+  openTerminalWindow: (terminalData: object) => Promise<{ success: boolean }>;
   
   // SSH functionality
   ssh: {
     connect: (config: SSHConfig) => Promise<SSHConnectionResult>;
     executeCommand: (connectionId: number, command: string) => Promise<SSHCommandResult>;
     listDirectory: (connectionId: number, remotePath?: string) => Promise<SSHDirectoryResult>;
-    listDirectoryRecursive: (connectionId: number, remotePath?: string, options?: any) => Promise<SSHDirectoryResult>;
+    listDirectoryRecursive: (connectionId: number, remotePath?: string, options?: { maxDepth?: number; includeFiles?: boolean; includeDirs?: boolean }) => Promise<SSHDirectoryResult>;
     downloadFile: (connectionId: number, remotePath: string, localPath: string) => Promise<SSHFileResult>;
     uploadFile: (connectionId: number, localPath: string, remotePath: string) => Promise<SSHFileResult>;
     disconnect: (connectionId: number) => Promise<SSHResult>;
