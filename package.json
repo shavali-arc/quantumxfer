@@ -62,6 +62,7 @@
     "appId": "com.quantumxfer.enterprise",
     "productName": "QuantumXfer Enterprise",
     "copyright": "Copyright © 2025 QuantumXfer Enterprise",
+    "npmRebuild": false,
     "directories": {
       "output": "dist-electron"
     },

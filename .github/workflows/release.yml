@@ -30,12 +30,12 @@ jobs:
       - name: Build web assets
         run: npm run build
 
-      - name: Build Electron packages (skip native rebuild)
+      - name: Build Electron packages
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            npx electron-builder --win -c.npmRebuild=false
+            npx electron-builder --win
           else
-            npx electron-builder --linux -c.npmRebuild=false
+            npx electron-builder --linux
           fi
         shell: bash
 
