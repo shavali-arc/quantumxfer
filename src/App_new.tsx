@@ -91,6 +91,7 @@ function App() {
       console.log('Terminal Logs Count:', activeSession.terminalLogs.length);
       console.log('Terminal Logs:', activeSession.terminalLogs);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSession?.terminalLogs]);
 
 
@@ -118,6 +119,7 @@ function App() {
     if (autoName !== (config.profileName || '')) {
       setConfig(prev => ({ ...prev, profileName: autoName }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.username, config.host, config.port, isProfileNameAuto]);
 
   // Cleanup: Save logs to file when component unmounts (app closes)
@@ -137,16 +139,16 @@ function App() {
               // Silently handle cleanup errors
             });
           }
-        } catch (error) {
+        } catch {
           // Silently handle cleanup errors
         }
       }
     };
   }, [selectedLogsDirectory, terminalLogs]);
 
-  // Enterprise features state
-  const [_showFavoritesOnly, _setShowFavoritesOnly] = useState(false);
-  const [_sortBy, _setSortBy] = useState<'lastUsed' | 'name' | 'frequency'>('lastUsed');
+  // Enterprise features state (placeholder for future features)
+  // const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  // const [sortBy, setSortBy] = useState<'lastUsed' | 'name' | 'frequency'>('lastUsed');
 
   // SFTP state
   const [remoteFiles, setRemoteFiles] = useState<SFTPFile[]>([]);
@@ -170,14 +172,14 @@ function App() {
     const initializeApp = async () => {
       console.log('=== APP USEEFFECT INIT ===');
       console.log('Current hash:', window.location.hash);
-      console.log('Window terminalData:', (window as any).terminalData);
+      console.log('Window terminalData:', (window as { terminalData?: unknown }).terminalData);
       console.log('localStorage terminalData:', localStorage.getItem('quantumxfer-terminal-data'));
 
       // Check if this is a terminal tab
       if (window.location.hash === '#terminal') {
         console.log('Terminal mode detected from hash');
         const terminalData = localStorage.getItem('quantumxfer-terminal-data');
-        const windowTerminalData = (window as any).terminalData;
+        const windowTerminalData = (window as { terminalData?: unknown }).terminalData;
 
         if (terminalData || windowTerminalData) {
           try {
@@ -237,7 +239,7 @@ function App() {
       if (savedLogs) {
         try {
           const logs = JSON.parse(savedLogs);
-          const logIds = logs.map((log: any) => log.id);
+          const logIds = logs.map((log: TerminalLog) => log.id);
           const hasDuplicates = logIds.length !== new Set(logIds).size;
 
           if (hasDuplicates) {
@@ -340,6 +342,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isConnected, terminalMode]);
 
   // Auto-save logs
@@ -358,7 +361,7 @@ function App() {
         const result = await window.electronAPI.loadProfilesFromFile();
         if (result.success && result.profiles) {
           // Convert lastUsed string back to Date object and ensure commandHistory exists
-          const profilesWithDates = result.profiles.map((profile: any) => ({
+          const profilesWithDates = result.profiles.map((profile: ConnectionProfile) => ({
             ...profile,
             lastUsed: new Date(profile.lastUsed),
             commandHistory: profile.commandHistory || [] // Ensure commandHistory exists
@@ -375,7 +378,7 @@ function App() {
       if (saved) {
         const parsedProfiles = JSON.parse(saved);
         // Convert lastUsed string back to Date object and ensure commandHistory exists
-        const profilesWithDates = parsedProfiles.map((profile: any) => ({
+        const profilesWithDates = parsedProfiles.map((profile: ConnectionProfile) => ({
           ...profile,
           lastUsed: new Date(profile.lastUsed),
           commandHistory: profile.commandHistory || [] // Ensure commandHistory exists
@@ -1057,7 +1060,7 @@ function App() {
           try {
             const regexPattern = new RegExp(searchTerm, 'i');
             return regexPattern.test(fileName);
-          } catch (error) {
+          } catch {
             // Invalid regex, fall back to simple search
             return fileName.includes(searchTerm);
           }
@@ -1071,7 +1074,7 @@ function App() {
             try {
               const regex = new RegExp(`^${pattern}$`, 'i');
               return regex.test(fileName);
-            } catch (error) {
+            } catch {
               return fileName.includes(searchTerm.replace(/[*?]/g, ''));
             }
           } else {
@@ -1098,8 +1101,8 @@ function App() {
           remotePath,
           {
             maxDepth: 5,
-            maxFiles: 500,
-            includeHidden: true
+            includeFiles: true,
+            includeDirs: true
           }
         );
 
@@ -1156,6 +1159,7 @@ function App() {
         filteredFiles: filteredFiles.slice(0, 5).map(f => ({ name: f.name, type: f.type }))
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteFiles, searchQuery, searchFilter, sizeFilter, dateFilter, useRegex, useRecursiveSearch]);
 
   // Initialize filtered files with remote files on mount
@@ -1254,6 +1258,7 @@ function App() {
       const homeDir = activeSession?.config?.username ? `/home/${activeSession.config.username}` : '/home/work';
       loadSFTPFiles(homeDir);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminalMode, isConnected, activeSession?.connectionId]);
 
 
