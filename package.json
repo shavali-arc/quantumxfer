@@ -21,7 +21,7 @@
     "electron:build:all": "npm run build && electron-builder --win --linux",
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "node -e \"if (!process.env.CI && !process.env.SKIP_EB_POSTINSTALL) { require('child_process').execSync('npx electron-builder install-app-deps', { stdio: 'inherit', shell: true }); } else { console.log('Skipping electron-builder install-app-deps (CI or SKIP_EB_POSTINSTALL set)'); }\""
   },
   "dependencies": {
     "@tailwindcss/postcss7-compat": "^2.2.17",
