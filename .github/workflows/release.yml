@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    name: Build and Upload Release Artifacts
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Build Electron packages
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            npx electron-builder --win
+          else
+            npx electron-builder --linux
+          fi
+        shell: bash
+
+      - name: Archive artifacts (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          ls -la dist-electron || true
+        shell: bash
+
+      - name: Archive artifacts (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          dir dist-electron
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quantumxfer-${{ runner.os }}
+          path: |
+            dist-electron/**
+
+  create-gh-release:
+    name: Create GitHub Release
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
