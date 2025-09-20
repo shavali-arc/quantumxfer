@@ -55,5 +55,5 @@ dist-packager
 # Note: Consider using Git LFS for large binary files
 dist-packager/*.zip
 
-# GitHub directory
-.github/
+# GitHub directory (allow workflows and other repo config)
+
