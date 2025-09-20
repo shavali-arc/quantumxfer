@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { ConnectionProfile } from './types/electron.d.ts';
+import type { ConnectionProfile, Bookmark, NewBookmark, ServerRef } from './types/electron.d.ts';
 
 // Global Command History Feature:
 // - Single shared command history across all profiles and terminal windows
@@ -60,6 +60,8 @@ function App() {
   // Multiple terminal sessions management
   const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  // Auto-generate profile name based on username/host/port until user overrides it
+  const [isProfileNameAuto, setIsProfileNameAuto] = useState<boolean>(true);
 
   // Notification state
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error' } | null>(null);
@@ -98,6 +100,26 @@ function App() {
   const [showProfiles, setShowProfiles] = useState(false);
   const [selectedLogsDirectory, setSelectedLogsDirectory] = useState<string>('');
 
+  // Generate a default profile name from fields
+  const generateProfileName = (u: string, h: string, p: number) => {
+    const username = (u || '').trim();
+    const host = (h || '').trim();
+    const port = p || 22;
+    if (username && host) return `${username}@${host}:${port}`;
+    if (host) return `${host}:${port}`;
+    if (username) return `${username}@`;
+    return '';
+  };
+
+  // Keep profile name in sync while auto mode is enabled
+  useEffect(() => {
+    if (!isProfileNameAuto) return;
+    const autoName = generateProfileName(config.username, config.host, config.port);
+    if (autoName !== (config.profileName || '')) {
+      setConfig(prev => ({ ...prev, profileName: autoName }));
+    }
+  }, [config.username, config.host, config.port, isProfileNameAuto]);
+
   // Cleanup: Save logs to file when component unmounts (app closes)
   useEffect(() => {
     return () => {
@@ -129,6 +151,9 @@ function App() {
   // SFTP state
   const [remoteFiles, setRemoteFiles] = useState<SFTPFile[]>([]);
   const [remotePath, setRemotePath] = useState('/home/work');
+
+  // Bookmarks state
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
 
   // SFTP Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -195,6 +220,17 @@ function App() {
       loadProfiles().catch(error => console.error('Error loading profiles:', error));
       loadSession();
       loadDirectoryPreference();
+      // Load bookmarks
+      try {
+        if (window.electronAPI?.bookmarks?.list) {
+          const res = await window.electronAPI.bookmarks.list();
+          if (res.success) {
+            setBookmarks(res.bookmarks || []);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load bookmarks:', err);
+      }
 
       // Clear old logs with duplicate IDs
       const savedLogs = localStorage.getItem('quantumxfer-logs');
@@ -885,6 +921,104 @@ function App() {
     }
   };
 
+  // -------------------------
+  // Bookmarks: helpers (UI)
+  // -------------------------
+  // Note: Bookmarks refresh is inline in each action; no separate refresher to keep linter clean
+
+  const addServerBookmark = async () => {
+    if (!config.host || !config.port || !config.username) {
+      setNotification({ message: 'Please fill Host, Port and Username to bookmark a server', type: 'warning' });
+      return;
+    }
+    const server: ServerRef = { host: config.host, port: config.port, username: config.username };
+    const payload: NewBookmark = {
+      type: 'server',
+      label: config.profileName || `${config.username}@${config.host}:${config.port}`,
+      server
+    };
+    try {
+      const res = await window.electronAPI?.bookmarks?.add?.(payload);
+      if (res?.success) {
+        setBookmarks(res.bookmarks || []);
+        setNotification({ message: 'Server bookmarked', type: 'success' });
+      } else {
+        setNotification({ message: 'Failed to add bookmark', type: 'error' });
+      }
+    } catch (e) {
+      console.error('addServerBookmark error:', e);
+      setNotification({ message: 'Failed to add bookmark', type: 'error' });
+    }
+  };
+
+  const addDirectoryBookmark = async () => {
+    if (!isConnected || !activeSession?.connectionId) {
+      setNotification({ message: 'Connect to a server before bookmarking a directory', type: 'warning' });
+      return;
+    }
+    const server: ServerRef = { host: config.host, port: config.port, username: config.username };
+    const payload: NewBookmark = {
+      type: 'directory',
+      label: `${server.username}@${server.host}:${server.port} • ${remotePath}`,
+      server,
+      path: remotePath
+    };
+    try {
+      const res = await window.electronAPI?.bookmarks?.add?.(payload);
+      if (res?.success) {
+        setBookmarks(res.bookmarks || []);
+        setNotification({ message: 'Directory bookmarked', type: 'success' });
+      } else {
+        setNotification({ message: 'Failed to add bookmark', type: 'error' });
+      }
+    } catch (e) {
+      console.error('addDirectoryBookmark error:', e);
+      setNotification({ message: 'Failed to add bookmark', type: 'error' });
+    }
+  };
+
+  const removeBookmark = async (id: string) => {
+    try {
+      const res = await window.electronAPI?.bookmarks?.remove?.(id);
+      if (res?.success) {
+        setBookmarks(res.bookmarks || []);
+        setNotification({ message: 'Bookmark removed', type: 'success' });
+      }
+    } catch (e) {
+      console.error('removeBookmark error:', e);
+    }
+  };
+
+  const goToBookmark = async (bm: Bookmark) => {
+    if (bm.type === 'server' && bm.server) {
+      setConfig(prev => ({
+        ...prev,
+        host: bm.server!.host,
+        port: bm.server!.port,
+        username: bm.server!.username || prev.username
+      }));
+      setActiveTab('connection');
+      setNotification({ message: 'Server bookmark loaded. Click Connect to establish a session.', type: 'info' });
+      return;
+    }
+
+    if (bm.type === 'directory') {
+      // If server info present and different, preload and ask to connect
+      if (bm.server && (!isConnected || bm.server.host !== config.host || bm.server.port !== config.port || bm.server.username !== config.username)) {
+        setConfig(prev => ({ ...prev, host: bm.server!.host, port: bm.server!.port, username: bm.server!.username || prev.username }));
+        setActiveTab('connection');
+        setNotification({ message: 'Directory bookmark belongs to a different server. Connection details loaded—please Connect.', type: 'warning' });
+        return;
+      }
+      if (!isConnected || !activeSession?.connectionId) {
+        setNotification({ message: 'Connect to the server to navigate to the bookmarked directory.', type: 'warning' });
+        return;
+      }
+      await loadSFTPFiles(bm.path || remotePath);
+      setTerminalMode('sftp');
+    }
+  };
+
   // SFTP Search and Filter Functions
   const filterFiles = (files: SFTPFile[], query: string, filter: string, size: string, date: string, regex: boolean) => {
     console.log('🔍 filterFiles called with:', { filesCount: files.length, query, filter, size, date, regex });
@@ -1299,6 +1433,80 @@ function App() {
                 ))}
               </div>
             )}
+
+            {/* Bookmarks Section */}
+            <div style={{ marginTop: '1rem', paddingLeft: '1rem' }}>
+              <div style={{
+                fontSize: '10px',
+                fontWeight: 'bold',
+                color: '#94a3b8',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '0.5rem'
+              }}>
+                Bookmarks ({bookmarks.length})
+              </div>
+
+              {bookmarks.length === 0 ? (
+                <div style={{ color: '#64748b', fontSize: '12px' }}>No bookmarks yet</div>
+              ) : (
+                bookmarks.map((bm) => (
+                  <div
+                    key={bm.id}
+                    onClick={() => goToBookmark(bm)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      backgroundColor: 'transparent',
+                      color: '#cbd5e1',
+                      border: 'none',
+                      borderLeft: '3px solid transparent',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: '400',
+                      transition: 'all 0.2s ease',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      borderRadius: '0 6px 6px 0',
+                      marginBottom: '0.125rem',
+                      opacity: 0.9
+                    }}
+                  >
+                    <span>{bm.type === 'server' ? '🖥️' : '📁'}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span style={{ fontSize: '11px', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {bm.label}
+                      </span>
+                      <span style={{ fontSize: '9px', opacity: 0.7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {bm.type === 'server'
+                          ? `${bm.server?.username || ''}${bm.server?.username ? '@' : ''}${bm.server?.host}:${bm.server?.port}`
+                          : `${bm.server?.host}:${bm.server?.port} ${bm.path}`}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeBookmark(bm.id); }}
+                      style={{
+                        marginLeft: 'auto',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        fontSize: '10px',
+                        padding: '2px',
+                        borderRadius: '2px'
+                      }}
+                      title="Remove bookmark"
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
         </div>
 
         {/* Status Footer */}
@@ -1459,7 +1667,12 @@ function App() {
                     <input
                       type="text"
                       value={config.profileName}
-                      onChange={(e) => setConfig(prev => ({ ...prev, profileName: e.target.value }))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setConfig(prev => ({ ...prev, profileName: val }));
+                        // Disable auto mode when user types a custom name; re-enable if cleared
+                        setIsProfileNameAuto(val.trim() === '');
+                      }}
                       placeholder="My Server Profile"
                       style={{
                         width: '100%',
@@ -1549,6 +1762,23 @@ function App() {
                       }}
                     >
                       Profiles
+                    </button>
+
+                    <button
+                      onClick={addServerBookmark}
+                      style={{
+                        padding: '0.75rem 0.75rem',
+                        backgroundColor: '#f59e0b',
+                        color: '#111827',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 600
+                      }}
+                      title="Bookmark this server"
+                    >
+                      ⭐ Bookmark Server
                     </button>
                   </div>
                 </div>
@@ -1850,6 +2080,22 @@ function App() {
                           }}
                         >
                           🔄 Refresh
+                        </button>
+                        <button
+                          onClick={addDirectoryBookmark}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#f59e0b',
+                            color: '#111827',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 600
+                          }}
+                          title="Bookmark current directory"
+                        >
+                          ⭐ Bookmark Directory
                         </button>
                       </div>
                     </div>

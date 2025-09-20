@@ -34,6 +34,13 @@ export interface ElectronAPI {
   loadCommandHistory: () => Promise<{ success: boolean; commands: string[]; error?: string }>;
   appendCommandHistory: (data: { command: string }) => Promise<{ success: boolean; commands: string[]; error?: string }>;
   
+  // Bookmarks management
+  bookmarks: {
+    list: () => Promise<{ success: boolean; bookmarks: Bookmark[]; error?: string }>;
+    add: (bookmark: NewBookmark) => Promise<{ success: boolean; bookmarks?: Bookmark[]; error?: string }>;
+    remove: (bookmarkId: string) => Promise<{ success: boolean; bookmarks?: Bookmark[]; error?: string }>;
+  };
+  
   // Menu actions
   onMenuNewConnection: (callback: () => void) => void;
   onMenuLogsDirectory: (callback: () => void) => void;
@@ -126,6 +133,33 @@ export interface ConnectionProfile {
   tags?: string[];
   sshKeyPath?: string;
   jumpHost?: string;
+}
+
+export type BookmarkType = 'directory' | 'server';
+
+export interface ServerRef {
+  host: string;
+  port: number;
+  username?: string;
+}
+
+export interface Bookmark {
+  id: string;
+  type: BookmarkType;
+  label: string;
+  createdAt: string;
+  // For server bookmarks
+  server?: ServerRef | null;
+  // For directory bookmarks (SFTP remote path)
+  path?: string | null;
+}
+
+export interface NewBookmark {
+  type: BookmarkType;
+  label?: string;
+  server?: ServerRef | null;
+  path?: string | null;
+  id?: string;
 }
 
 declare global {

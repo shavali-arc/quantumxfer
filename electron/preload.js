@@ -37,6 +37,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getConnections: () => ipcRenderer.invoke('ssh-get-connections')
   },
   
+  // Bookmarks
+  bookmarks: {
+    list: () => ipcRenderer.invoke('bookmarks-list'),
+    add: (bookmark) => ipcRenderer.invoke('bookmarks-add', bookmark),
+    remove: (bookmarkId) => ipcRenderer.invoke('bookmarks-remove', bookmarkId)
+  },
+  
   // Menu actions
   onMenuNewConnection: (callback) => ipcRenderer.on('menu-new-connection', callback),
   onMenuLogsDirectory: (callback) => ipcRenderer.on('menu-logs-directory', callback),
