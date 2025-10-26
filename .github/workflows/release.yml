@@ -5,6 +5,8 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+  schedule:
+    - cron: '0 9 1 * *'  # Monthly: 1st of month at 9 AM UTC
 
 jobs:
   build-release:
