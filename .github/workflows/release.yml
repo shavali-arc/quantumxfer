@@ -63,6 +63,7 @@ jobs:
     name: Create GitHub Release
     needs: build-release
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
