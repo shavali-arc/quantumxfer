@@ -48,6 +48,9 @@ dist-packager
 
 # Cache directories
 .cache
+
+# TFTP server directory
+tftp_root/
 .parcel-cache
 .eslintcache
 

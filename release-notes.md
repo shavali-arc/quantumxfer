@@ -1,69 +1,113 @@
-# QuantumXfer Enterprise v1.0.0 - Initial Release
+# QuantumXfer Enterprise - Release Notes
 
-🎉 **First stable release** of QuantumXfer Enterprise - Professional SSH/SFTP Client with Enterprise-Grade Security and Management!
+## 📌 Latest Release: v1.1.0
 
-## 📦 Download Packages
+**Release Date**: August 27, 2025  
+**Status**: Stable  
+**Platform Support**: Windows (x64, ARM64), Linux (x64, ARM64)
 
-All packages are **portable** and require **no installation**. Simply download, extract, and run!
+---
 
-### Windows
-- **QuantumXfer-Enterprise-Windows-x64.zip** (275 MB) - For Intel/AMD 64-bit systems
-- **QuantumXfer-Enterprise-Windows-ARM64.zip** (274 MB) - For ARM64 systems
+## 🎯 Version 1.1.0 - SSH-Enabled Release
 
-### Linux  
-- **QuantumXfer-Enterprise-Linux-x64.zip** (265 MB) - For Intel/AMD 64-bit systems
-- **QuantumXfer-Enterprise-Linux-ARM64.zip** (265 MB) - For ARM64 systems
+### � Major Features
 
-## ✨ Key Features
+#### Real SSH Connections
+- **SSH Server Support** - Connect to Linux, Unix, Windows, and cloud servers
+- **Password Authentication** - Standard username/password login
+- **Multi-Session Management** - Multiple concurrent server connections
+- **Profile Management** - Save and manage connection configurations
 
-### 🛡️ Enterprise Security
-- SSH Key Authentication with passphrase support
-- Multi-Factor Authentication (MFA) for enhanced security
-- Jump Host Support for secure network access
-- Encrypted Password Storage with local encryption
-- Session Security Monitoring and audit trails
+#### Advanced Terminal
+- **Full Terminal Interface** - Real command execution on remote servers
+- **Multi-Tab Sessions** - Independent terminal windows per connection
+- **Command History** - Per-profile command history with navigation
+- **Session Logging** - Auto-save terminal output to local files
 
-### 📊 Advanced Management
-- Connection Profile Management with favorites and tagging
-- Session Analytics with usage statistics and time tracking
-- Command History per profile with arrow key navigation
-- Advanced Search & Filtering across all profiles
-- Bulk Import/Export of connection profiles
+#### SFTP File Management
+- **Remote File Browser** - Navigate server directory structures
+- **File Transfer** - Upload/download with progress tracking
+- **Drag & Drop** - Intuitive file transfer interface
+- **Metadata Viewing** - Permissions, sizes, timestamps
 
-### 📁 Integrated SFTP Client
-- Drag & Drop File Transfers with progress tracking
-- Batch File Operations for efficient management
-- Remote File Browser with intuitive navigation
-- Transfer Queue Management with retry capabilities
-- File Permission Management and metadata viewing
+#### Security & Performance
+- **Encrypted Storage** - Password encryption using system keychain
+- **Connection Pooling** - Efficient resource management
+- **Error Handling** - Graceful failure and recovery
+- **Multi-Platform** - Full support for Windows, Linux, macOS
 
-### 💻 Modern Terminal Experience
-- PowerShell-Style Interface for familiar experience
-- Multi-Tab Support with independent sessions
-- Auto-Save Session Logging with configurable storage
-- Intelligent Auto-Focus for seamless typing
+### 📦 Downloads
 
-## 🚀 Quick Start
+All packages are **portable** (no installation required). Simply extract and run!
 
-### Windows
-1. Download QuantumXfer-Enterprise-Windows-x64.zip
-2. Extract to any folder
-3. Run QuantumXfer Enterprise.exe
+| Platform | Architecture | Download |
+|----------|-------------|----------|
+| Windows | x64 (Intel/AMD) | QuantumXfer-Enterprise-Windows-x64.zip |
+| Windows | ARM64 | QuantumXfer-Enterprise-Windows-ARM64.zip |
+| Linux | x64 (Intel/AMD) | QuantumXfer-Enterprise-Linux-x64.zip |
+| Linux | ARM64 | QuantumXfer-Enterprise-Linux-ARM64.zip |
 
-### Linux
-1. Download QuantumXfer-Enterprise-Linux-x64.zip
-2. Extract: unzip QuantumXfer-Enterprise-Linux-x64.zip
-3. Make executable: chmod +x "QuantumXfer Enterprise"
-4. Run: ./"QuantumXfer Enterprise"
+### � Technical Stack
 
-## 📋 System Requirements
-- **Windows**: Windows 10 v1903+ | 4 GB RAM | 200 MB disk space
-- **Linux**: Ubuntu 18.04+ / CentOS 7+ | 4 GB RAM | 200 MB disk space
+- **Frontend**: React 19.1.1 + TypeScript 5.8 + Tailwind CSS 4
+- **Backend**: Electron 37.3.1 with SSH2 library
+- **Build Tools**: Vite 7, electron-builder 26
+- **Security**: Context isolation, safeStorage encryption, preload bridge
+- **Terminal**: xterm.js for terminal emulation
 
-## 🛠️ Technical Details
-- **Frontend**: React 19.1.1 + TypeScript + Tailwind CSS
-- **Backend**: Electron 37.3.1 with secure preload scripts
-- **Security**: Context isolation enabled, no node integration
-- **Architecture Support**: x64 and ARM64 for Windows and Linux
+### � System Requirements
 
-**Full Changelog**: This is the initial release of QuantumXfer Enterprise.
+**Minimum**:
+- Windows 10 v1903+ | 4 GB RAM | 200 MB disk
+- Linux: Ubuntu 18.04+, CentOS 7+ | 4 GB RAM | 200 MB disk
+
+**Recommended**:
+- Windows 11 | 8 GB+ RAM | 500 MB disk
+- Linux: Ubuntu 22.04+ | 8 GB+ RAM | 500 MB disk
+
+### 🎯 Quick Start
+
+**Windows**:
+1. Download ZIP file for your architecture
+2. Extract to desired folder
+3. Run `QuantumXfer Enterprise.exe`
+
+**Linux**:
+1. Download ZIP file for your architecture
+2. Extract: `unzip QuantumXfer-Enterprise-Linux-x64.zip`
+3. Make executable: `chmod +x "QuantumXfer Enterprise"`
+4. Run: `./"QuantumXfer Enterprise"`
+
+---
+
+## �️ Roadmap for v2.0
+
+The following features are planned for enterprise hardening:
+
+- **Unit Tests**: Comprehensive test coverage (>80%)
+- **Structured Logging**: JSON-based audit trails for compliance
+- **SSH Key Management**: UI for key generation and import
+- **JumpHost Support**: Multi-hop SSH with bastion hosts
+- **Session Audit Logging**: Detailed connection and command tracking
+- **Health Checks**: Connection keep-alive and auto-reconnect
+- **Performance Optimization**: Virtual scrolling for large file listings
+- **Enterprise Documentation**: Deployment guides and security hardening
+
+See [ENTERPRISE_ASSESSMENT_ISSUES.md](./ENTERPRISE_ASSESSMENT_ISSUES.md) for detailed roadmap.
+
+---
+
+## 📖 Documentation
+
+- **[README.md](./README.md)** - Project overview and features
+- **[INSTALLATION.md](./INSTALLATION.md)** - Installation instructions
+- **[BUILD_AND_RUN.md](./BUILD_AND_RUN.md)** - Build and development guide
+- **[TESTING-GUIDE.md](./TESTING-GUIDE.md)** - Testing procedures
+- **[ENTERPRISE_ASSESSMENT_ISSUES.md](./ENTERPRISE_ASSESSMENT_ISSUES.md)** - Enterprise roadmap
+
+---
+
+## 📞 Support
+
+For issues, questions, or feature requests, please visit:
+https://github.com/shavali-arc/quantumxfer/issues
