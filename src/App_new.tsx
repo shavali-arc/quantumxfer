@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Star, LogOut } from 'lucide-react';
 import type { ConnectionProfile, Bookmark, NewBookmark, ServerRef } from './types/electron.d.ts';
 
 // Global Command History Feature:
@@ -1779,11 +1780,15 @@ function App() {
                         borderRadius: '6px',
                         cursor: 'pointer',
                         fontSize: '14px',
-                        fontWeight: 600
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
                       }}
                       title="Bookmark this server"
                     >
-                      ⭐ Bookmark Server
+                      <Star size={18} fill="#111827" />
+                      Bookmark Server
                     </button>
                   </div>
                 </div>
@@ -1946,6 +1951,33 @@ function App() {
                     </div>
                   )}
                 </div>
+                <button
+                  onClick={() => {
+                    if (activeSessionId) {
+                      setTerminalSessions(prev => prev.filter(s => s.id !== activeSessionId));
+                      const remainingSessions = terminalSessions.filter(s => s.id !== activeSessionId);
+                      setActiveSessionId(remainingSessions.length > 0 ? remainingSessions[0].id : null);
+                      setNotification({ message: 'Session closed', type: 'info' });
+                    }
+                  }}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                  title="Close the current session"
+                >
+                  <LogOut size={16} />
+                  Close Session
+                </button>
 
                 {/* Terminal Mode Toggle */}
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -2096,11 +2128,15 @@ function App() {
                             borderRadius: '4px',
                             cursor: 'pointer',
                             fontSize: '0.8rem',
-                            fontWeight: 600
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.375rem'
                           }}
                           title="Bookmark current directory"
                         >
-                          ⭐ Bookmark Directory
+                          <Star size={14} fill="#111827" />
+                          Bookmark Directory
                         </button>
                       </div>
                     </div>
