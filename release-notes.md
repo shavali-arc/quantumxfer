@@ -1,6 +1,64 @@
 # QuantumXfer Enterprise - Release Notes
 
-## 📌 Latest Release: v1.1.0
+## 📌 Latest Release: v1.2.0
+
+**Release Date**: December 2025  
+**Status**: Stable  
+**Platform Support**: Windows (x64, ARM64), Linux (x64, ARM64)
+
+---
+
+## 🎯 Version 1.2.0 - Enterprise Readiness & Documentation Release
+
+### ✨ Major Improvements
+
+#### Enterprise Readiness Assessment
+- **Comprehensive Audit**: Detailed analysis of enterprise readiness (72% baseline → 90%+ target)
+- **11 Prioritized Issues**: GitHub issues created (#52-62) with effort estimates and implementation roadmap
+- **3-Phase Roadmap**: Clear path to enterprise-grade production release over 8-9 weeks
+- **Structured Assessment**: Detailed evaluation covering security, testing, logging, and compliance
+
+#### Documentation & Developer Experience
+- **BUILD_AND_RUN.md**: Comprehensive build guide for cross-platform development
+- **build_and_run.py**: Python-based cross-platform build automation with TFTP server support
+- **Enterprise Assessment Issues**: Prioritized roadmap with P0/P1/P2 classification
+- **Repository Cleanup**: Removed 17 obsolete files (-37% lines), improved maintainability
+- **Consolidated Release Notes**: Single source of truth for all release information
+
+#### Code Quality
+- **Repository Cleanup**: 
+  - Removed duplicate build scripts (build.bat, build.sh)
+  - Removed obsolete setup documentation
+  - Removed legacy release automation scripts
+  - Consolidated release notes from 4 files into single source
+- **Documentation Consolidation**: All relevant information in BUILD_AND_RUN.md and this file
+- **Automation Improvements**: Python-based build system with cross-platform support and TFTP functionality
+
+### 🛣️ Enterprise Roadmap (v2.0+)
+
+Based on comprehensive assessment, the following enterprise features are prioritized:
+
+**Phase 1 (Weeks 1-3) - Foundation**:
+- Unit test suite (>80% coverage)
+- Structured JSON-based audit logging
+- SSH key management UI
+
+**Phase 2 (Weeks 4-6) - Advanced Features**:
+- JumpHost/bastion host support
+- Session audit logging
+- Connection health checks with auto-reconnect
+
+**Phase 3 (Weeks 7-9) - Optimization & Compliance**:
+- Performance optimization (virtual scrolling)
+- Enterprise documentation
+- Security hardening guides
+- Compliance audit trails
+
+See [ENTERPRISE_ASSESSMENT_ISSUES.md](./ENTERPRISE_ASSESSMENT_ISSUES.md) for complete details with effort estimates.
+
+---
+
+## 📌 Previous Release: v1.1.0
 
 **Release Date**: August 27, 2025  
 **Status**: Stable  
