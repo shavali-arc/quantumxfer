@@ -63,6 +63,7 @@
     "productName": "QuantumXfer Enterprise",
     "copyright": "Copyright © 2025 QuantumXfer Enterprise",
     "npmRebuild": false,
+    "asar": false,
     "directories": {
       "output": "dist-electron"
     },
@@ -70,7 +71,6 @@
       "dist/**/*",
       "electron/**/*",
       "assets/**/*",
-      "node_modules/**/*",
       "package.json"
     ],
     "extraResources": [
@@ -83,7 +83,8 @@
       }
     ],
     "win": {
-      "target": "dir"
+      "target": "dir",
+      "forceCodeSigning": false
     },
     "linux": {
       "target": [
