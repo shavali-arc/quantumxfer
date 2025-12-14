@@ -5,38 +5,17 @@
 ![QuantumXfer Logo](assets/logo.png)
 
 # ⚡ QuantumXfer Enterprise
-## Professional ### Building Packages
+## Professional SSH/SFTP Client
 
-#### All Platforms (Automated)
-```bash
-# Create all release packages
-npm run build
-./create-releases.bat  # Windows
-# or
-chmod +x build.sh && ./build.sh  # Linux/macOS
-
-# Individual platform builds using electron-packager
-npx electron-packager . "QuantumXfer Enterprise" --platform=win32 --arch=x64 --out=dist-packager --overwrite
-npx electron-packager . "QuantumXfer Enterprise" --platform=linux --arch=x64 --out=dist-packager --overwrite
-```
-
-#### Manual Building
-```bash
-# Build web application
-npm run build
-
-# Package for specific platforms
-npm run electron:build:win     # Windows only
-npm run electron:build:linux   # Linux only
-npm run electron:build:all     # All platforms
-```*Enterprise-Grade Security • Advanced Management • Modern UI/UX**
+**Enterprise-Grade Security • Advanced Management • Modern UI/UX**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](package.json)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#building-from-source)
+[![Tests](https://img.shields.io/badge/tests-42%20passing-success.svg)](#testing)
 
-[📥 Download](#download) • [📖 Documentation](#documentation) • [🚀 Quick Start](#quick-start) • [🛠️ Building](#building-from-source)
+[📥 Download](#download) • [📖 Documentation](#documentation) • [🚀 Quick Start](#quick-start) • [🛠️ Building](#building-from-source) • [🧪 Testing](#testing)
 
 </div>
 
@@ -85,7 +64,7 @@ npm run electron:build:all     # All platforms
 
 ✅ **Ready for Download!** All packages have been successfully built and tested.
 
-### Available Releases v1.0.0
+### Available Releases v1.2.0
 
 | Platform | Architecture | Download | Size |
 |----------|-------------|----------|------|
@@ -118,34 +97,34 @@ Download and install the appropriate package for your platform from the [downloa
 
 ### 2. First Connection
 1. Launch QuantumXfer Enterprise
-2. Fill in your SSH server details:
-   ```
-   Host: your-server.com
-   Username: your-username
-   Password: your-password
-   Profile Name: My Server (optional)
-   ```
-3. Click "🚀 Connect to SSH Server"
-4. Start using your SSH terminal!
+2. Click "New Connection" button
+3. Enter your SSH server details:
+   - Host: your-server.com
+   - Port: 22
+   - Username: your-username
+   - Password or SSH Key
+4. Click "Connect"
 
-### 3. Enable SFTP
-- Click "📁 Show SFTP" in the terminal tab
-- Upload/download files with drag & drop
-- Manage remote files with the integrated browser
+### 3. Start Working
+- Execute commands in the terminal
+- Browse files using the integrated SFTP client
+- Transfer files with drag & drop
+- Save connection profiles for quick access
 
 ---
 
 ## 🛠️ Building from Source
 
 ### Prerequisites
-- **Node.js** 16.0.0 or higher
-- **npm** 8.0.0 or higher
+- **Node.js** 22.0.0 or higher
+- **npm** 10.0.0 or higher
+- **Docker** (for integration testing)
 
 ### Setup
 ```bash
 # Clone the repository
-git clone https://github.com/quantumxfer/quantumxfer-enterprise.git
-cd quantumxfer-enterprise
+git clone https://github.com/shavali-arc/quantumxfer.git
+cd quantumxfer
 
 # Install dependencies
 npm install
@@ -188,11 +167,73 @@ npm run dev
 
 ---
 
+## 🧪 Testing
+
+QuantumXfer has comprehensive test coverage with unit, integration, and E2E tests.
+
+### Test Statistics
+- **Total Tests**: 400+ (42 integration + 350+ unit tests)
+- **Coverage**: 90%+ (statement, line, function)
+- **Framework**: Vitest 2.1.9
+- **Integration**: Docker-based OpenSSH server
+
+### Quick Test Commands
+
+```bash
+# Run all tests
+npm test
+
+# Run integration tests with Docker SSH server
+npm run test:integration:ssh
+
+# Run tests in watch mode
+npm test -- --watch
+
+# Generate coverage report
+npm run test:coverage
+```
+
+### Integration Testing
+
+We use a Docker-based OpenSSH server for realistic integration testing:
+
+```bash
+# Start SSH test server
+npm run test:ssh-up
+
+# Run integration tests
+npm test -- tests/integration/ --run
+
+# Stop SSH test server
+npm run test:ssh-down
+```
+
+**Integration Test Coverage:**
+- ✅ SSH connection establishment (13 tests)
+- ✅ Command execution (9 tests)
+- ✅ Concurrency & pooling (11 tests)
+- ✅ File operations & SFTP (9 tests)
+
+### CI/CD Testing
+
+Integration tests run automatically in GitHub Actions on:
+- Push to main or feature branches
+- Pull requests to main
+- Uses Docker services for SSH server
+- Uploads test results as artifacts
+
+---
+
 ## 📖 Documentation
 
 ### Getting Started
 - **[🚀 Quick Start Guide](VALIDATION-QUICK-START.md)** - Get started in 5 minutes
 - **[📋 Installation Guide](INSTALLATION.md)** - Detailed installation instructions
+
+### Testing Documentation
+- **[🧪 Integration Testing Guide](INTEGRATION-TESTING-GUIDE.md)** - Docker-based SSH integration testing
+- **[📝 Testing Guide](TESTING-GUIDE.md)** - Complete testing guide including WSL setup
+- **[🔬 Test Results](.github/workflows/integration-tests.yml)** - CI/CD test automation
 
 ### Validation Framework Documentation (Phase 5 Complete ✅)
 - **[📚 Developer Guide](VALIDATION-DEVELOPER-GUIDE.md)** - Complete validation framework documentation
@@ -201,13 +242,64 @@ npm run dev
 - **[🔐 Security Best Practices](SECURITY-BEST-PRACTICES.md)** - Enterprise security guidelines
 - **[✅ Phase 5 Completion Report](PHASE5-COMPLETION-REPORT.md)** - Documentation status and summary
 
+### Development
+- **[🔧 Handler Integration Guide](HANDLER-INTEGRATION-GUIDE.md)** - Integration patterns and examples
+- **[📊 Issues Summary](ISSUES_SUMMARY.md)** - GitHub issues tracking
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our contributing guidelines:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Workflow
+
+1. Make your changes
+2. Run tests: `npm test`
+3. Run integration tests: `npm run test:integration:ssh`
+4. Ensure linting passes: `npm run lint`
+5. Build successfully: `npm run build`
+
+---
+
+## 📊 Project Status
+
+### Completed Features ✅
+- Core SSH/SFTP functionality
+- Input validation framework (626 tests)
+- Docker-based integration testing (42 tests)
+- CI/CD automation with GitHub Actions
+- Comprehensive documentation
+
+### In Progress 🔄
+- Issue #74: Functional/Blackbox Testing (Phase 1 complete)
+- Issue #85: Docker SSH test server (Infrastructure complete)
+- E2E testing with Spectron (Planned)
+
+### Upcoming 📅
+- Performance testing framework
+- Additional protocol support (REST API, Database, WebSocket)
+- Enhanced security features
+
 ---
 
 ## 📞 Support
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/quantumxfer/quantumxfer-enterprise/issues)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/shavali-arc/quantumxfer/issues)
 - **Email**: support@quantumxfer.enterprise
-- **Documentation**: [docs.quantumxfer.enterprise](https://docs.quantumxfer.enterprise)
+- **Documentation**: Full documentation available in repository
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
