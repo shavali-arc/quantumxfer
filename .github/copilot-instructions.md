@@ -13,9 +13,11 @@
 1. **Before Starting Work:**
    ```bash
    git checkout main
-   git pull origin main
+   git pull origin main  # ALWAYS sync with remote main first
    git checkout -b feature/issue-<number>-<description>
    ```
+   
+   **Important**: Always ensure your local main branch is up to date with the remote main branch before creating a new feature branch.
 
 2. **Create GitHub Issue First:**
    - Every feature branch must have a corresponding GitHub issue
@@ -25,6 +27,7 @@
      - Proposed solution (if known)
      - Priority label (P0-critical, P1-high, P2-medium)
      - Relevant labels (bug, enhancement, documentation, etc.)
+   - **Always assign the issue to @shavali-arc**
 
 3. **Link Branch to Issue:**
    - Reference the issue number in branch name
@@ -34,11 +37,13 @@
    - Every feature branch must have a corresponding PR
    - PR title should reference the issue: `[Issue #XX] Brief description`
    - PR description should include:
+     - **Project context**: QuantumXfer - SSH File Transfer Client (Electron + React + TypeScript)
      - Summary of changes
      - Closes/Fixes/Resolves #XX reference
      - Testing performed
      - Screenshots/logs if applicable
    - Link PR to the issue
+   - **Always assign the PR to @shavali-arc**
 
 5. **Before Merging:**
    - Ensure all CI/CD pipelines pass (CI, Integration Tests, E2E Tests)
