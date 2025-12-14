@@ -190,8 +190,16 @@ npm run dev
 
 ## 📖 Documentation
 
+### Getting Started
+- **[🚀 Quick Start Guide](VALIDATION-QUICK-START.md)** - Get started in 5 minutes
 - **[📋 Installation Guide](INSTALLATION.md)** - Detailed installation instructions
-- **[🚀 Startup Guide](STARTUP-GUIDE.md)** - Get connected in 5 minutes
+
+### Validation Framework Documentation (Phase 5 Complete ✅)
+- **[📚 Developer Guide](VALIDATION-DEVELOPER-GUIDE.md)** - Complete validation framework documentation
+- **[💻 Handler Usage Examples](HANDLER-USAGE-EXAMPLES.md)** - 100+ code examples for all handlers
+- **[⚠️ Error Codes Reference](ERROR-CODES-REFERENCE.md)** - All 30+ error codes with solutions
+- **[🔐 Security Best Practices](SECURITY-BEST-PRACTICES.md)** - Enterprise security guidelines
+- **[✅ Phase 5 Completion Report](PHASE5-COMPLETION-REPORT.md)** - Documentation status and summary
 
 ---
 
