@@ -18,7 +18,7 @@ test.describe('Command Execution', () => {
     await closeApp();
   });
 
-  test.afterEach(async ({}, testInfo) => {
+  test.afterEach(async (testInfo) => {
     if (testInfo.status !== 'passed') {
       await captureScreenshot(testInfo.title);
     }
