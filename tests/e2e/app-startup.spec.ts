@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { launchApp, closeApp, captureScreenshot, waitForAppReady, getWindowTitle } from './helpers';
+import { launchApp, closeApp, captureScreenshot, getWindowTitle } from './helpers';
 
 /**
  * E2E Tests: Application Startup
@@ -16,7 +16,7 @@ test.describe('Application Startup', () => {
     await closeApp();
   });
 
-  test.afterEach(async ({ }, testInfo) => {
+  test.afterEach(async (_fixtures, testInfo) => {
     // Capture screenshot on failure
     if (testInfo.status !== 'passed') {
       await captureScreenshot(testInfo.title);
@@ -98,7 +98,7 @@ test.describe('Application Startup', () => {
   });
 
   test('should close application gracefully', async () => {
-    const { app } = await launchApp();
+    await launchApp();
     
     // No need to wait - just verify we can close
     

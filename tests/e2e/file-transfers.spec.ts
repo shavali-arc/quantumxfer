@@ -19,7 +19,7 @@ test.describe('File Transfers', () => {
     await closeApp();
   });
 
-  test.afterEach(async ({ }, testInfo) => {
+  test.afterEach(async (_fixtures, testInfo) => {
     if (testInfo.status !== 'passed') {
       await captureScreenshot(testInfo.title);
     }
@@ -56,9 +56,6 @@ test.describe('File Transfers', () => {
   test('should display transfer queue/list', async () => {
     const { window } = await launchApp();
     await window.waitForSelector('#root', { state: 'attached', timeout: 15000 });
-    
-    // Look for transfer queue container
-    const transferItems = await window.$$('[data-testid*="transfer"], .transfer, [class*="Queue"]');
     
     // Queue UI should exist (even if empty)
     const html = await window.content();

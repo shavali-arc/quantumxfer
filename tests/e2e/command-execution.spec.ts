@@ -18,7 +18,7 @@ test.describe('Command Execution', () => {
     await closeApp();
   });
 
-  test.afterEach(async ({ }, testInfo) => {
+  test.afterEach(async (_fixtures, testInfo) => {
     if (testInfo.status !== 'passed') {
       await captureScreenshot(testInfo.title);
     }
@@ -101,10 +101,6 @@ test.describe('Command Execution', () => {
     await window.waitForSelector('#root', { state: 'attached', timeout: 15000 });
     
     const buttons = await window.$$('button');
-    const executeButton = await window.$('button:has-text("Execute")') ||
-                         await window.$('button:has-text("execute")') ||
-                         await window.$('button:has-text("Run")') ||
-                         await window.$('[data-testid*="execute"]');
     
     // Should have buttons for control
     expect(buttons.length).toBeGreaterThan(0);

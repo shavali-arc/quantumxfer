@@ -1,4 +1,4 @@
-import { test, expect, _electron as electron } from '@playwright/test';
+import { _electron as electron } from '@playwright/test';
 import { ElectronApplication, Page } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';

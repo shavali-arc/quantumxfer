@@ -19,7 +19,7 @@ test.describe('Connection Management', () => {
     await closeApp();
   });
 
-  test.afterEach(async ({ }, testInfo) => {
+  test.afterEach(async (_fixtures, testInfo) => {
     // Capture screenshot on failure
     if (testInfo.status !== 'passed') {
       await captureScreenshot(testInfo.title);
