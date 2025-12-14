@@ -8,6 +8,9 @@ import { dirname } from 'path';
 // Import SSH Service
 import SSHService from './ssh-service.js';
 
+// Import Handler Validation Middleware
+import HandlerValidator from './validators/middleware.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -361,69 +364,62 @@ ipcMain.handle('show-open-dialog', async (event, options) => {
   return result;
 });
 
-// SSH IPC Handlers
-ipcMain.handle('ssh-connect', async (event, config) => {
-  try {
+// SSH IPC Handlers - Validated
+ipcMain.handle('ssh-connect', HandlerValidator.createValidatedHandler(
+  async (event, config) => {
     const result = await sshService.connect(config);
     return result;
-  } catch (error) {
-    return error;
-  }
-});
+  },
+  (config) => HandlerValidator.validateConnection(config)
+));
 
-ipcMain.handle('ssh-execute-command', async (event, connectionId, command) => {
-  try {
+ipcMain.handle('ssh-execute-command', HandlerValidator.createValidatedHandler(
+  async (event, connectionId, command) => {
     const result = await sshService.executeCommand(connectionId, command);
     return result;
-  } catch (error) {
-    return error;
-  }
-});
+  },
+  (connectionId, command) => HandlerValidator.validateCommandExecution(connectionId, command)
+));
 
-ipcMain.handle('ssh-list-directory', async (event, connectionId, remotePath) => {
-  try {
+ipcMain.handle('ssh-list-directory', HandlerValidator.createValidatedHandler(
+  async (event, connectionId, remotePath) => {
     const result = await sshService.listDirectory(connectionId, remotePath);
     return result;
-  } catch (error) {
-    return error;
-  }
-});
+  },
+  (connectionId, remotePath) => HandlerValidator.validateDirectoryListing(connectionId, remotePath)
+));
 
-ipcMain.handle('ssh-list-directory-recursive', async (event, connectionId, remotePath, options) => {
-  try {
+ipcMain.handle('ssh-list-directory-recursive', HandlerValidator.createValidatedHandler(
+  async (event, connectionId, remotePath, options) => {
     const result = await sshService.listDirectoryRecursive(connectionId, remotePath, options);
     return result;
-  } catch (error) {
-    return error;
-  }
-});
+  },
+  (connectionId, remotePath) => HandlerValidator.validateDirectoryListing(connectionId, remotePath)
+));
 
-ipcMain.handle('ssh-download-file', async (event, connectionId, remotePath, localPath) => {
-  try {
+ipcMain.handle('ssh-download-file', HandlerValidator.createValidatedHandler(
+  async (event, connectionId, remotePath, localPath) => {
     const result = await sshService.downloadFile(connectionId, remotePath, localPath);
     return result;
-  } catch (error) {
-    return error;
-  }
-});
+  },
+  (connectionId, remotePath, localPath) => HandlerValidator.validateFileDownload(connectionId, remotePath, localPath)
+));
 
-ipcMain.handle('ssh-upload-file', async (event, connectionId, localPath, remotePath) => {
-  try {
+ipcMain.handle('ssh-upload-file', HandlerValidator.createValidatedHandler(
+  async (event, connectionId, localPath, remotePath) => {
     const result = await sshService.uploadFile(connectionId, localPath, remotePath);
     return result;
-  } catch (error) {
-    return error;
-  }
-});
+  },
+  (connectionId, localPath, remotePath) => HandlerValidator.validateFileUpload(connectionId, localPath, remotePath)
+));
 
-ipcMain.handle('ssh-disconnect', (event, connectionId) => {
-  try {
+ipcMain.handle('ssh-disconnect', HandlerValidator.createValidatedHandler(
+  (event, connectionId) => {
     const result = sshService.disconnect(connectionId);
     return result;
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  },
+  (connectionId) => HandlerValidator.validateConnectionId(connectionId)
+));
 
 ipcMain.handle('ssh-get-connections', () => {
   try {
@@ -505,7 +501,7 @@ function writeBookmarks(bookmarks) {
 }
 
 // -----------------------------
-// Bookmarks: IPC handlers
+// Bookmarks: IPC handlers - Validated
 // -----------------------------
 ipcMain.handle('bookmarks-list', async () => {
   try {
@@ -516,8 +512,8 @@ ipcMain.handle('bookmarks-list', async () => {
   }
 });
 
-ipcMain.handle('bookmarks-add', async (event, bookmark) => {
-  try {
+ipcMain.handle('bookmarks-add', HandlerValidator.createValidatedHandler(
+  async (event, bookmark) => {
     const bookmarks = readBookmarks();
     // Prevent duplicates: same type + server + path/host
     const key = JSON.stringify({
@@ -542,13 +538,12 @@ ipcMain.handle('bookmarks-add', async (event, bookmark) => {
       }
     }
     return { success: true, bookmarks: readBookmarks() };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  },
+  (bookmark) => HandlerValidator.validateBookmarkObject(bookmark)
+));
 
-ipcMain.handle('bookmarks-remove', async (event, bookmarkId) => {
-  try {
+ipcMain.handle('bookmarks-remove', HandlerValidator.createValidatedHandler(
+  async (event, bookmarkId) => {
     const bookmarks = readBookmarks();
     const filtered = bookmarks.filter(b => b.id !== bookmarkId);
     const result = writeBookmarks(filtered);
@@ -556,10 +551,9 @@ ipcMain.handle('bookmarks-remove', async (event, bookmarkId) => {
       return { success: false, error: result.error };
     }
     return { success: true, bookmarks: filtered };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  },
+  (bookmarkId) => HandlerValidator.validateBookmarkId(bookmarkId)
+));
 
 // Helper function to encrypt passwords in profiles
 function encryptProfiles(profiles) {
@@ -611,9 +605,9 @@ function decryptProfiles(profiles) {
     return profile;
   });
 }
-ipcMain.handle('save-profiles-to-file', async (event, profiles) => {
-  console.log('=== IPC: save-profiles-to-file called ===');
-  try {
+ipcMain.handle('save-profiles-to-file', HandlerValidator.createValidatedHandler(
+  async (event, profiles) => {
+    console.log('=== IPC: save-profiles-to-file called ===');
     const userDataPath = app.getPath('userData');
     const profilesDir = path.join(userDataPath, 'profiles');
     
@@ -629,10 +623,9 @@ ipcMain.handle('save-profiles-to-file', async (event, profiles) => {
     fs.writeFileSync(profilesPath, JSON.stringify(encryptedProfiles, null, 2), 'utf8');
     
     return { success: true, filePath: profilesPath };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  },
+  (profiles) => HandlerValidator.validateProfilesArray(profiles)
+));
 
 ipcMain.handle('load-profiles-from-file', async () => {
   console.log('=== IPC: load-profiles-from-file called ===');
