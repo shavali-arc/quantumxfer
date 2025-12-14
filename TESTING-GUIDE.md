@@ -1,7 +1,35 @@
 # QuantumXfer Testing Guide
 
 ## Overview
-This guide provides step-by-step instructions for testing QuantumXfer Enterprise SSH/SFTP functionality using a local WSL Ubuntu server.
+This guide provides step-by-step instructions for testing QuantumXfer Enterprise SSH/SFTP functionality using a local WSL Ubuntu server or the Docker-based OpenSSH test server (Option C).
+
+## Option C: Docker OpenSSH Test Server (recommended for automation)
+
+Use the bundled helper to start a real OpenSSH server in Docker that matches our integration test defaults.
+
+### Requirements
+- Docker running locally
+- Host port 2222 available
+
+### Quick start (PowerShell)
+```powershell
+# From repo root
+npm run test:ssh-up
+npm run test:integration:ssh
+npm run test:ssh-down
+```
+
+### Container details
+- Image: ghcr.io/linuxserver/openssh-server:latest
+- Container: quantumxfer-ssh-test
+- Host/port: 127.0.0.1:2222
+- User/password: testuser / testpass
+
+### Troubleshooting
+- Check status: `node tests/scripts/ssh-test-server.js status`
+- If port 2222 is in use, stop the conflicting service or remap and update `tests/fixtures/mock-ssh-server.js` credentials accordingly.
+
+---
 
 ## Quick Setup Summary
 

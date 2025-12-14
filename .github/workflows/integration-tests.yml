@@ -1,0 +1,70 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  integration-tests:
+    name: Integration Tests with Docker SSH
+    runs-on: ubuntu-latest
+    
+    services:
+      ssh-server:
+        image: ghcr.io/linuxserver/openssh-server:latest
+        ports:
+          - 2222:2222
+        env:
+          PUID: 1000
+          PGID: 1000
+          TZ: UTC
+          PASSWORD_ACCESS: true
+          USER_NAME: testuser
+          USER_PASSWORD: testpass
+        options: >-
+          --health-cmd "nc -z localhost 2222 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      
+      - name: Wait for SSH server to be ready
+        run: |
+          echo "Waiting for SSH server on localhost:2222..."
+          for i in {1..30}; do
+            if nc -z localhost 2222; then
+              echo "SSH server is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+      
+      - name: Run integration tests
+        run: npm test -- tests/integration/ --run
+        env:
+          CI: true
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            coverage/
+            test-results/
+          retention-days: 7
