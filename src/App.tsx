@@ -1881,7 +1881,7 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
 
   // Main connection form
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', padding: '2rem' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white', padding: '2rem' }} data-testid="app-container">
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
