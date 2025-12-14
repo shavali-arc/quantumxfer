@@ -250,7 +250,7 @@ Integration tests run automatically in GitHub Actions on:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our contributing guidelines:
+We welcome contributions! Please read our **[Contributing Guide](CONTRIBUTING.md)** for detailed workflow and guidelines.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
