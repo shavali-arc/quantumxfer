@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { launchApp, closeApp, captureScreenshot } from './helpers';
+import { launchApp, closeApp } from './helpers';
 
 /**
  * E2E Tests: Command Execution
@@ -18,10 +18,7 @@ test.describe('Command Execution', () => {
     await closeApp();
   });
 
-  test.afterEach(async (testInfo) => {
-    if (testInfo.status !== 'passed') {
-      await captureScreenshot(testInfo.title);
-    }
+  test.afterEach(async () => {
     await closeApp();
   });
 
