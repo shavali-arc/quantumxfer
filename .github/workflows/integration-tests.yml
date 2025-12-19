@@ -2,7 +2,7 @@ name: Integration Tests
 
 on:
   push:
-    branches: [ main, 'feature/**' ]
+    branches: [ main ]  # Only run on main to avoid duplicate runs with pull_request
   pull_request:
     branches: [ main ]
 
