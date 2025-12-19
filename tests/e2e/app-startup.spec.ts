@@ -13,11 +13,13 @@ test.describe('Application Startup', () => {
   
   test.beforeEach(async () => {
     // Clean state before each test
+    console.log('[Before Each] Cleaning up before test...');
     await closeApp();
   });
 
   test.afterEach(async () => {
     // Always close app after test
+    console.log('[After Each] Closing application...');
     await closeApp();
   });
 
