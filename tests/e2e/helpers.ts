@@ -52,13 +52,27 @@ export async function launchApp(): Promise<{ app: ElectronApplication; window: P
  * Close the Electron application
  */
 export async function closeApp() {
-  if (mainWindow) {
-    await mainWindow.close();
+  try {
+    if (mainWindow) {
+      try {
+        await mainWindow.close();
+      } catch (err) {
+        console.warn('Error closing mainWindow:', err);
+      }
+      mainWindow = null;
+    }
+    
+    if (electronApp) {
+      try {
+        await electronApp.close();
+      } catch (err) {
+        console.warn('Error closing electronApp:', err);
+      }
+      electronApp = null;
+    }
+  } catch (err) {
+    console.warn('Error in closeApp:', err);
     mainWindow = null;
-  }
-  
-  if (electronApp) {
-    await electronApp.close();
     electronApp = null;
   }
 }
