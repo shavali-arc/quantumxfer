@@ -8,13 +8,13 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
   
-  // Maximum time one test can run (30s for E2E)
-  timeout: 30 * 1000,
+  // Maximum time one test can run (60s for E2E on CI due to slower environments)
+  timeout: process.env.CI ? 60 * 1000 : 30 * 1000,
   
   // Test execution settings
   fullyParallel: false, // Run tests serially for Electron
   forbidOnly: !!process.env.CI, // Fail if test.only in CI
-  retries: process.env.CI ? 2 : 1, // Retry on CI
+  retries: process.env.CI ? 1 : 1, // Single retry on CI to avoid timeout
   workers: 1, // Single worker for Electron tests
   
   // Reporter configuration

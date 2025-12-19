@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { launchApp, closeApp, captureScreenshot, testCredentials } from './helpers';
+import { launchApp, closeApp, testCredentials } from './helpers';
 
 /**
  * E2E Tests: Connection Management
@@ -19,12 +19,7 @@ test.describe('Connection Management', () => {
     await closeApp();
   });
 
-  test.afterEach(async (testInfo) => {
-    // Capture screenshot on failure
-    if (testInfo.status !== 'passed') {
-      await captureScreenshot(testInfo.title);
-    }
-    
+  test.afterEach(async () => {
     // Always close app after test
     await closeApp();
   });

@@ -43,10 +43,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb
       
-      - name: Run E2E tests
+      - name: Start X server (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          export DISPLAY=:99
+          /usr/bin/Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+          echo "Started Xvfb on :99"
+          sleep 3
+
+      - name: Run E2E tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" npm run test:e2e
+
+      - name: Run E2E tests (Non-Linux)
+        if: runner.os != 'Linux'
         run: npm run test:e2e
-        env:
-          DISPLAY: ':99'
       
       - name: Upload test results
         if: always()

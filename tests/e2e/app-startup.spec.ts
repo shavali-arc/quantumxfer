@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { launchApp, closeApp, captureScreenshot, getWindowTitle } from './helpers';
+import { launchApp, closeApp, getWindowTitle } from './helpers';
 
 /**
  * E2E Tests: Application Startup
@@ -13,16 +13,13 @@ test.describe('Application Startup', () => {
   
   test.beforeEach(async () => {
     // Clean state before each test
+    console.log('[Before Each] Cleaning up before test...');
     await closeApp();
   });
 
-  test.afterEach(async (testInfo) => {
-    // Capture screenshot on failure
-    if (testInfo.status !== 'passed') {
-      await captureScreenshot(testInfo.title);
-    }
-    
+  test.afterEach(async () => {
     // Always close app after test
+    console.log('[After Each] Closing application...');
     await closeApp();
   });
 
