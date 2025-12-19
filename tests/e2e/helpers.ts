@@ -24,7 +24,11 @@ export async function launchApp(): Promise<{ app: ElectronApplication; window: P
 
   // Launch Electron app
   electronApp = await electron.launch({
-    args: [path.join(__dirname, '../../electron/main.js')],
+    args: [
+      path.join(__dirname, '../../electron/main.js'),
+      // Add no-sandbox flag for CI environments (especially Linux)
+      ...(process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox'] : [])
+    ],
     env: {
       ...process.env,
       NODE_ENV: 'test',
