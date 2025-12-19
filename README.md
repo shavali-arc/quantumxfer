@@ -230,6 +230,9 @@ Integration tests run automatically in GitHub Actions on:
 - **[🚀 Quick Start Guide](VALIDATION-QUICK-START.md)** - Get started in 5 minutes
 - **[📋 Installation Guide](INSTALLATION.md)** - Detailed installation instructions
 
+### Architecture
+- **[🧭 Architecture & Technical Overview](ARCHITECTURE.md)** - Runtime topology, IPC surface, validation, build/run, and follow-ups
+
 ### Testing Documentation
 - **[🧪 Integration Testing Guide](INTEGRATION-TESTING-GUIDE.md)** - Docker-based SSH integration testing
 - **[📝 Testing Guide](TESTING-GUIDE.md)** - Complete testing guide including WSL setup
