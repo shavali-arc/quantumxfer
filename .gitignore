@@ -60,3 +60,12 @@ dist-packager/*.zip
 
 # GitHub directory (allow workflows and other repo config)
 
+# Test artifacts and reports
+playwright-report*/
+e2e-artifacts-*/
+test-results/
+e2e-test-results.txt
+
+# Backup copies
+README-OLD-BACKUP.md
+

@@ -2,6 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Star, LogOut } from 'lucide-react';
 import type { ConnectionProfile, Bookmark, NewBookmark, ServerRef } from './types/electron.d.ts';
 
+const isDebugMode = import.meta.env.DEV;
+
+// Silence verbose console logging in production while keeping errors intact
+if (!isDebugMode && typeof console !== 'undefined') {
+  console.log = () => {};
+  console.warn = () => {};
+}
+
 // Global Command History Feature:
 // - Single shared command history across all profiles and terminal windows
 // - Stored in: %APPDATA%\quantumxfer\command-history\global-command-history.json
