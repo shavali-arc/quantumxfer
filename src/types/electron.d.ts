@@ -1,4 +1,17 @@
 // TypeScript declarations for Electron API
+
+/**
+ * Standardized IPC Response Format
+ * All IPC handlers should return this structure for consistency
+ */
+export interface IPCResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  code?: string;
+  timestamp?: number;
+}
+
 export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
