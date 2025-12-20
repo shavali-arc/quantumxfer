@@ -11,6 +11,9 @@ import SSHService from './ssh-service.js';
 // Import Handler Validation Middleware
 import HandlerValidator from './validators/middleware.js';
 
+// Import IPC Error Handler
+import IPCErrorHandler from './ipc-error-handler.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -349,88 +352,117 @@ app.on('window-all-closed', () => {
   }
 });
 
-// IPC handlers
-ipcMain.handle('app-version', () => {
-  return app.getVersion();
-});
-
-ipcMain.handle('show-save-dialog', async (event, options) => {
-  const result = await dialog.showSaveDialog(mainWindow, options);
-  return result;
-});
-
-ipcMain.handle('show-open-dialog', async (event, options) => {
-  const result = await dialog.showOpenDialog(mainWindow, options);
-  return result;
-});
-
-// SSH IPC Handlers - Validated
-ipcMain.handle('ssh-connect', HandlerValidator.createValidatedHandler(
-  async (event, config) => {
-    const result = await sshService.connect(config);
-    return result;
+// IPC handlers with standardized error handling
+ipcMain.handle('app-version', IPCErrorHandler.wrapHandler(
+  async () => {
+    return app.getVersion();
   },
-  (config) => HandlerValidator.validateConnection(config)
+  { timeout: 5000, retries: 0 }
 ));
 
-ipcMain.handle('ssh-execute-command', HandlerValidator.createValidatedHandler(
-  async (event, connectionId, command) => {
-    const result = await sshService.executeCommand(connectionId, command);
+ipcMain.handle('show-save-dialog', IPCErrorHandler.wrapHandler(
+  async (event, options) => {
+    const result = await dialog.showSaveDialog(mainWindow, options);
     return result;
   },
-  (connectionId, command) => HandlerValidator.validateCommandExecution(connectionId, command)
+  { timeout: 30000, retries: 0 }
 ));
 
-ipcMain.handle('ssh-list-directory', HandlerValidator.createValidatedHandler(
-  async (event, connectionId, remotePath) => {
-    const result = await sshService.listDirectory(connectionId, remotePath);
+ipcMain.handle('show-open-dialog', IPCErrorHandler.wrapHandler(
+  async (event, options) => {
+    const result = await dialog.showOpenDialog(mainWindow, options);
     return result;
   },
-  (connectionId, remotePath) => HandlerValidator.validateDirectoryListing(connectionId, remotePath)
+  { timeout: 30000, retries: 0 }
 ));
 
-ipcMain.handle('ssh-list-directory-recursive', HandlerValidator.createValidatedHandler(
-  async (event, connectionId, remotePath, options) => {
-    const result = await sshService.listDirectoryRecursive(connectionId, remotePath, options);
-    return result;
-  },
-  (connectionId, remotePath) => HandlerValidator.validateDirectoryListing(connectionId, remotePath)
+// SSH IPC Handlers - Validated with Error Handling
+ipcMain.handle('ssh-connect', IPCErrorHandler.wrapHandler(
+  HandlerValidator.createValidatedHandler(
+    async (event, config) => {
+      const result = await sshService.connect(config);
+      return result;
+    },
+    (config) => HandlerValidator.validateConnection(config)
+  ),
+  { timeout: 60000, retries: 2, retryDelay: 1000 }
 ));
 
-ipcMain.handle('ssh-download-file', HandlerValidator.createValidatedHandler(
-  async (event, connectionId, remotePath, localPath) => {
-    const result = await sshService.downloadFile(connectionId, remotePath, localPath);
-    return result;
-  },
-  (connectionId, remotePath, localPath) => HandlerValidator.validateFileDownload(connectionId, remotePath, localPath)
+ipcMain.handle('ssh-execute-command', IPCErrorHandler.wrapHandler(
+  HandlerValidator.createValidatedHandler(
+    async (event, connectionId, command) => {
+      const result = await sshService.executeCommand(connectionId, command);
+      return result;
+    },
+    (connectionId, command) => HandlerValidator.validateCommandExecution(connectionId, command)
+  ),
+  { timeout: 30000, retries: 1, retryDelay: 500 }
 ));
 
-ipcMain.handle('ssh-upload-file', HandlerValidator.createValidatedHandler(
-  async (event, connectionId, localPath, remotePath) => {
-    const result = await sshService.uploadFile(connectionId, localPath, remotePath);
-    return result;
-  },
-  (connectionId, localPath, remotePath) => HandlerValidator.validateFileUpload(connectionId, localPath, remotePath)
+ipcMain.handle('ssh-list-directory', IPCErrorHandler.wrapHandler(
+  HandlerValidator.createValidatedHandler(
+    async (event, connectionId, remotePath) => {
+      const result = await sshService.listDirectory(connectionId, remotePath);
+      return result;
+    },
+    (connectionId, remotePath) => HandlerValidator.validateDirectoryListing(connectionId, remotePath)
+  ),
+  { timeout: 15000, retries: 1, retryDelay: 500 }
 ));
 
-ipcMain.handle('ssh-disconnect', HandlerValidator.createValidatedHandler(
-  (event, connectionId) => {
-    const result = sshService.disconnect(connectionId);
-    return result;
-  },
-  (connectionId) => HandlerValidator.validateConnectionId(connectionId)
+ipcMain.handle('ssh-list-directory-recursive', IPCErrorHandler.wrapHandler(
+  HandlerValidator.createValidatedHandler(
+    async (event, connectionId, remotePath, options) => {
+      const result = await sshService.listDirectoryRecursive(connectionId, remotePath, options);
+      return result;
+    },
+    (connectionId, remotePath) => HandlerValidator.validateDirectoryListing(connectionId, remotePath)
+  ),
+  { timeout: 45000, retries: 1, retryDelay: 500 }
 ));
 
-ipcMain.handle('ssh-get-connections', () => {
-  try {
+ipcMain.handle('ssh-download-file', IPCErrorHandler.wrapHandler(
+  HandlerValidator.createValidatedHandler(
+    async (event, connectionId, remotePath, localPath) => {
+      const result = await sshService.downloadFile(connectionId, remotePath, localPath);
+      return result;
+    },
+    (connectionId, remotePath, localPath) => HandlerValidator.validateFileDownload(connectionId, remotePath, localPath)
+  ),
+  { timeout: 300000, retries: 2, retryDelay: 1000 }  // 5 min timeout for large files
+));
+
+ipcMain.handle('ssh-upload-file', IPCErrorHandler.wrapHandler(
+  HandlerValidator.createValidatedHandler(
+    async (event, connectionId, localPath, remotePath) => {
+      const result = await sshService.uploadFile(connectionId, localPath, remotePath);
+      return result;
+    },
+    (connectionId, localPath, remotePath) => HandlerValidator.validateFileUpload(connectionId, localPath, remotePath)
+  ),
+  { timeout: 300000, retries: 2, retryDelay: 1000 }  // 5 min timeout for large files
+));
+
+ipcMain.handle('ssh-disconnect', IPCErrorHandler.wrapHandler(
+  HandlerValidator.createValidatedHandler(
+    (event, connectionId) => {
+      const result = sshService.disconnect(connectionId);
+      return result;
+    },
+    (connectionId) => HandlerValidator.validateConnectionId(connectionId)
+  ),
+  { timeout: 10000, retries: 0 }
+));
+
+ipcMain.handle('ssh-get-connections', IPCErrorHandler.wrapHandler(
+  async (event) => {
     return {
       success: true,
       connections: sshService.getActiveConnections()
     };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  },
+  { timeout: 5000, retries: 0 }
+));
 
 // Add IPC handler for writing log files
 ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
