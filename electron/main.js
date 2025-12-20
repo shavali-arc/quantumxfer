@@ -14,6 +14,9 @@ import HandlerValidator from './validators/middleware.js';
 // Import IPC Error Handler
 import IPCErrorHandler from './ipc-error-handler.js';
 
+// Import Structured Logger
+import Logger from './logger.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -26,6 +29,22 @@ const isDev = process.env.NODE_ENV === 'development';
 
 // Initialize SSH service
 const sshService = new SSHService();
+
+// Initialize Structured Logger
+const logger = new Logger({
+  level: isDev ? 'DEBUG' : 'INFO',
+  enableConsole: isDev,
+  enableFile: true,
+  context: 'QuantumXfer-Main'
+});
+
+logger.info('QuantumXfer Application Started', {
+  version: '1.0.0',
+  environment: isDev ? 'development' : 'production',
+  platform: process.platform,
+  nodeVersion: process.version
+});
+
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
@@ -380,8 +399,20 @@ ipcMain.handle('show-open-dialog', IPCErrorHandler.wrapHandler(
 ipcMain.handle('ssh-connect', IPCErrorHandler.wrapHandler(
   HandlerValidator.createValidatedHandler(
     async (event, config) => {
-      const result = await sshService.connect(config);
-      return result;
+      const startTime = Date.now();
+      try {
+        const result = await sshService.connect(config);
+        const duration = Date.now() - startTime;
+        
+        // Audit log successful connection
+        logger.logSSHConnect(result.connectionId, config, { success: true, duration });
+        
+        return result;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        logger.logSSHConnect(null, config, { success: false, error: error.message, duration });
+        throw error;
+      }
     },
     (config) => HandlerValidator.validateConnection(config)
   ),
@@ -391,8 +422,28 @@ ipcMain.handle('ssh-connect', IPCErrorHandler.wrapHandler(
 ipcMain.handle('ssh-execute-command', IPCErrorHandler.wrapHandler(
   HandlerValidator.createValidatedHandler(
     async (event, connectionId, command) => {
-      const result = await sshService.executeCommand(connectionId, command);
-      return result;
+      const startTime = Date.now();
+      try {
+        const result = await sshService.executeCommand(connectionId, command);
+        const duration = Date.now() - startTime;
+        
+        // Audit log command execution
+        logger.logSSHCommand(connectionId, command, { 
+          success: true, 
+          exitCode: result.exitCode,
+          duration 
+        });
+        
+        return result;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        logger.logSSHCommand(connectionId, command, { 
+          success: false, 
+          error: error.message,
+          duration 
+        });
+        throw error;
+      }
     },
     (connectionId, command) => HandlerValidator.validateCommandExecution(connectionId, command)
   ),
@@ -424,8 +475,28 @@ ipcMain.handle('ssh-list-directory-recursive', IPCErrorHandler.wrapHandler(
 ipcMain.handle('ssh-download-file', IPCErrorHandler.wrapHandler(
   HandlerValidator.createValidatedHandler(
     async (event, connectionId, remotePath, localPath) => {
-      const result = await sshService.downloadFile(connectionId, remotePath, localPath);
-      return result;
+      const startTime = Date.now();
+      try {
+        const result = await sshService.downloadFile(connectionId, remotePath, localPath);
+        const duration = Date.now() - startTime;
+        
+        // Audit log file download
+        logger.logFileTransfer('download', connectionId, remotePath, localPath, result.fileSize, {
+          success: true,
+          duration,
+          speed: result.transferSpeed
+        });
+        
+        return result;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        logger.logFileTransfer('download', connectionId, remotePath, localPath, 0, {
+          success: false,
+          error: error.message,
+          duration
+        });
+        throw error;
+      }
     },
     (connectionId, remotePath, localPath) => HandlerValidator.validateFileDownload(connectionId, remotePath, localPath)
   ),
@@ -435,8 +506,28 @@ ipcMain.handle('ssh-download-file', IPCErrorHandler.wrapHandler(
 ipcMain.handle('ssh-upload-file', IPCErrorHandler.wrapHandler(
   HandlerValidator.createValidatedHandler(
     async (event, connectionId, localPath, remotePath) => {
-      const result = await sshService.uploadFile(connectionId, localPath, remotePath);
-      return result;
+      const startTime = Date.now();
+      try {
+        const result = await sshService.uploadFile(connectionId, localPath, remotePath);
+        const duration = Date.now() - startTime;
+        
+        // Audit log file upload
+        logger.logFileTransfer('upload', connectionId, localPath, remotePath, result.fileSize, {
+          success: true,
+          duration,
+          speed: result.transferSpeed
+        });
+        
+        return result;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        logger.logFileTransfer('upload', connectionId, localPath, remotePath, 0, {
+          success: false,
+          error: error.message,
+          duration
+        });
+        throw error;
+      }
     },
     (connectionId, localPath, remotePath) => HandlerValidator.validateFileUpload(connectionId, localPath, remotePath)
   ),
