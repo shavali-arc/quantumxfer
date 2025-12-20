@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import KeyGenerator from './components/KeyGenerator';
+import KeyImport from './components/KeyImport';
 
 export default function KeyManagerApp() {
+  const [tab, setTab] = useState<'generate'|'import'>('generate');
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: 'white' }}>
       <div style={{
@@ -12,11 +15,14 @@ export default function KeyManagerApp() {
         justifyContent: 'space-between'
       }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#f1f5f9', margin: 0 }}>SSH Key Management</h1>
-        <div style={{ fontSize: '12px', color: '#94a3b8' }}>QuantumXfer</div>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button onClick={() => setTab('generate')} style={{ padding: '0.4rem 0.6rem', backgroundColor: tab==='generate' ? '#3b82f6' : '#334155', border: '1px solid #475569', borderRadius: 6, color: 'white', cursor: 'pointer', fontSize: 12 }}>Generate</button>
+          <button onClick={() => setTab('import')} style={{ padding: '0.4rem 0.6rem', backgroundColor: tab==='import' ? '#3b82f6' : '#334155', border: '1px solid #475569', borderRadius: 6, color: 'white', cursor: 'pointer', fontSize: 12 }}>Import</button>
+        </div>
       </div>
 
       <div style={{ padding: '1rem' }}>
-        <KeyGenerator />
+        {tab === 'generate' ? <KeyGenerator /> : <KeyImport />}
       </div>
     </div>
   );
