@@ -19,9 +19,9 @@
     "test:ssh-up": "node tests/scripts/ssh-test-server.js start",
     "test:ssh-down": "node tests/scripts/ssh-test-server.js stop",
     "test:integration:ssh": "node tests/scripts/run-integration-with-ssh.js",
-      "test:e2e": "playwright test",
-      "test:e2e:headed": "playwright test --headed",
-      "test:e2e:debug": "playwright test --debug",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5188 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build && electron-builder",
@@ -42,7 +42,9 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "ssh2": "^1.17.0",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

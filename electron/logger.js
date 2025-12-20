@@ -4,17 +4,46 @@ import os from 'os';
 import { app } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Log levels with numeric values for filtering
-const LOG_LEVELS = {
-  DEBUG: 0,
-  INFO: 1,
-  WARN: 2,
-  ERROR: 3
-};
+/**
+ * Structured Logging Framework for QuantumXfer
+ * Uses Winston for logging with daily rotation, JSON formatting, and sensitive data sanitization
+ * 
+ * Log Levels:
+ * - error: Critical errors that need immediate attention
+ * - warn: Warning conditions that should be reviewed
+ * - info: General informational messages (default)
+ * - debug: Detailed debugging information
+ */
+
+// Sensitive patterns to redact from logs
+const SENSITIVE_PATTERNS = [
+  /password\s*[:=]\s*['"]?([^\s,}'"]+)['"]?/gi,
+  /token\s*[:=]\s*['"]?([^\s,}'"]+)['"]?/gi,
+  /api[_-]?key\s*[:=]\s*['"]?([^\s,}'"]+)['"]?/gi,
+  /secret\s*[:=]\s*['"]?([^\s,}'"]+)['"]?/gi,
+  /private[_-]?key\s*[:=]\s*['"]?([^\s,}'"]+)['"]?/gi,
+  /passphrase\s*[:=]\s*['"]?([^\s,}'"]+)['"]?/gi,
+  /auth\s*[:=]\s*['"]?([^\s,}'"]+)['"]?/gi,
+];
+
+const SENSITIVE_KEYS = [
+  'password',
+  'privateKey',
+  'passphrase',
+  'token',
+  'secret',
+  'auth',
+  'apiKey',
+  'api_key',
+  'credential',
+  'credentials'
+];
 
 /**
  * Structured Logger for QuantumXfer Application
@@ -22,19 +51,124 @@ const LOG_LEVELS = {
  */
 class Logger {
   constructor(options = {}) {
-    this.minLevel = LOG_LEVELS[options.level || 'INFO'];
+    this.minLevel = options.level || (process.env.NODE_ENV === 'production' ? 'INFO' : 'DEBUG');
     this.logsDirectory = options.logsDirectory || this.getDefaultLogsDirectory();
-    this.maxLogFileSize = options.maxLogFileSize || 10 * 1024 * 1024; // 10MB
-    this.maxLogFiles = options.maxLogFiles || 5;
     this.enableConsole = options.enableConsole !== false;
     this.enableFile = options.enableFile !== false;
     this.context = options.context || 'app';
-    this.ipcLogger = options.ipcLogger || null;
+    this.maxLogFileSize = options.maxLogFileSize || '10m';
+    this.maxLogFiles = options.maxLogFiles || '14d';
     
     // Ensure logs directory exists
     if (this.enableFile) {
       this.ensureLogsDirectory();
     }
+
+    // Initialize Winston logger
+    this.winstonLogger = this.initializeWinston();
+  }
+
+  /**
+   * Initialize Winston logger with transports
+   */
+  initializeWinston() {
+    const transports = [];
+
+    // Console transport (development)
+    if (this.enableConsole) {
+      transports.push(
+        new winston.transports.Console({
+          format: winston.format.combine(
+            winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+            winston.format.colorize(),
+            winston.format.printf(({ timestamp, level, message, ...meta }) => {
+              let log = `${timestamp} [${level}] [${this.context}] ${message}`;
+              if (Object.keys(meta).length > 0) {
+                const metaSanitized = this.sanitizeSensitiveData(meta);
+                log += ` ${JSON.stringify(metaSanitized)}`;
+              }
+              return log;
+            })
+          )
+        })
+      );
+    }
+
+    // File transport - all logs with daily rotation
+    if (this.enableFile) {
+      transports.push(
+        new DailyRotateFile({
+          filename: path.join(this.logsDirectory, 'quantumxfer-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          maxSize: this.maxLogFileSize,
+          maxFiles: this.maxLogFiles,
+          format: winston.format.combine(
+            winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+            winston.format.json()
+          )
+        })
+      );
+
+      // Error logs with daily rotation
+      transports.push(
+        new DailyRotateFile({
+          level: 'error',
+          filename: path.join(this.logsDirectory, 'error-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          maxSize: this.maxLogFileSize,
+          maxFiles: this.maxLogFiles,
+          format: winston.format.combine(
+            winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+            winston.format.json()
+          )
+        })
+      );
+
+      // Audit logs with extended retention
+      transports.push(
+        new DailyRotateFile({
+          level: 'info',
+          filename: path.join(this.logsDirectory, 'audit-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          maxSize: this.maxLogFileSize,
+          maxFiles: '30d',
+          format: winston.format.combine(
+            winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+            winston.format.json()
+          )
+        })
+      );
+    }
+
+    return winston.createLogger({
+      level: this.minLevel.toLowerCase(),
+      format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.errors({ stack: true }),
+        winston.format.splat(),
+        winston.format.json()
+      ),
+      defaultMeta: { service: 'quantumxfer', context: this.context },
+      transports,
+      exceptionHandlers: [
+        new DailyRotateFile({
+          filename: path.join(this.logsDirectory, 'exception-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          maxSize: this.maxLogFileSize,
+          maxFiles: this.maxLogFiles,
+          format: winston.format.json()
+        })
+      ],
+      rejectionHandlers: [
+        new DailyRotateFile({
+          filename: path.join(this.logsDirectory, 'rejection-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          maxSize: this.maxLogFileSize,
+          maxFiles: this.maxLogFiles,
+          format: winston.format.json()
+        })
+      ]
+    });
   }
 
   /**
@@ -68,22 +202,7 @@ class Logger {
   }
 
   /**
-   * Format timestamp for logs
-   */
-  formatTimestamp() {
-    return new Date().toISOString();
-  }
-
-  /**
-   * Get current log file path
-   */
-  getCurrentLogFilePath() {
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    return path.join(this.logsDirectory, `quantum-xfer-${timestamp}.log`);
-  }
-
-  /**
-   * Sanitize sensitive data from log entries
+   * Sanitize sensitive data from logs
    */
   sanitizeSensitiveData(data) {
     if (!data || typeof data !== 'object') {
@@ -98,12 +217,16 @@ class Logger {
       return { _error: 'Non-serializable object' };
     }
 
-    const sensitiveKeys = ['password', 'privateKey', 'passphrase', 'token', 'secret', 'auth'];
-
     const sanitizeObject = (obj) => {
       for (const key in obj) {
-        if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk.toLowerCase()))) {
+        const lowerKey = key.toLowerCase();
+        
+        // Redact sensitive fields by key name
+        if (SENSITIVE_KEYS.some(sk => lowerKey.includes(sk))) {
           obj[key] = '[REDACTED]';
+        } else if (typeof obj[key] === 'string') {
+          // Redact by pattern
+          obj[key] = this.redactByPattern(obj[key]);
         } else if (typeof obj[key] === 'object' && obj[key] !== null) {
           sanitizeObject(obj[key]);
         }
@@ -115,157 +238,38 @@ class Logger {
   }
 
   /**
-   * Format log entry as structured JSON
+   * Redact sensitive patterns from strings
    */
-  formatLogEntry(level, message, meta = {}) {
-    return {
-      timestamp: this.formatTimestamp(),
-      level,
-      context: this.context,
-      message,
-      metadata: this.sanitizeSensitiveData(meta),
-      processId: process.pid,
-      environment: process.env.NODE_ENV || 'production'
-    };
-  }
+  redactByPattern(str) {
+    if (typeof str !== 'string') return str;
 
-  /**
-   * Format log entry as human-readable text
-   */
-  formatLogText(entry) {
-    const { timestamp, level, context, message, metadata } = entry;
-    let text = `[${timestamp}] [${level}] [${context}] ${message}`;
-    
-    if (Object.keys(metadata).length > 0) {
-      text += ` | ${JSON.stringify(metadata)}`;
-    }
-    
-    return text;
-  }
-
-  /**
-   * Write log to file
-   */
-  writeToFile(entry) {
-    if (!this.enableFile) return;
-
-    try {
-      const logFile = this.getCurrentLogFilePath();
-      const logText = this.formatLogText(entry);
-      const logJson = JSON.stringify(entry);
-
-      // Append to current log file
-      fs.appendFileSync(logFile, logJson + '\n', 'utf8');
-
-      // Check if we need to rotate logs
-      this.rotateLogsIfNeeded();
-    } catch (error) {
-      console.error(`Failed to write to log file: ${error.message}`);
-    }
-  }
-
-  /**
-   * Rotate logs if current file exceeds max size
-   */
-  rotateLogsIfNeeded() {
-    try {
-      const logFile = this.getCurrentLogFilePath();
-      
-      if (!fs.existsSync(logFile)) return;
-
-      const stats = fs.statSync(logFile);
-      
-      if (stats.size > this.maxLogFileSize) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const backupFile = logFile.replace('.log', `-backup-${timestamp}.log`);
-        fs.renameSync(logFile, backupFile);
-        
-        // Clean old backups
-        this.cleanupOldLogs();
-      }
-    } catch (error) {
-      console.error(`Failed to rotate logs: ${error.message}`);
-    }
-  }
-
-  /**
-   * Clean up old log files exceeding max count
-   */
-  cleanupOldLogs() {
-    try {
-      if (!fs.existsSync(this.logsDirectory)) return;
-
-      const files = fs.readdirSync(this.logsDirectory)
-        .filter(f => f.startsWith('quantum-xfer-') && f.endsWith('.log'))
-        .sort()
-        .reverse();
-
-      // Keep only maxLogFiles
-      for (let i = this.maxLogFiles; i < files.length; i++) {
-        const oldFile = path.join(this.logsDirectory, files[i]);
-        fs.unlinkSync(oldFile);
-      }
-    } catch (error) {
-      console.error(`Failed to cleanup old logs: ${error.message}`);
-    }
-  }
-
-  /**
-   * Core logging function
-   */
-  log(level, message, meta = {}) {
-    const numLevel = LOG_LEVELS[level];
-    
-    // Check if this log level should be logged
-    if (numLevel < this.minLevel) {
-      return;
-    }
-
-    const entry = this.formatLogEntry(level, message, meta);
-
-    // Log to console
-    if (this.enableConsole) {
-      const logText = this.formatLogText(entry);
-      const consoleMethod = {
-        DEBUG: 'debug',
-        INFO: 'info',
-        WARN: 'warn',
-        ERROR: 'error'
-      }[level] || 'log';
-
-      console[consoleMethod](logText);
-    }
-
-    // Log to file
-    this.writeToFile(entry);
-
-    // Send to IPC logger if available
-    if (this.ipcLogger) {
-      try {
-        this.ipcLogger(entry);
-      } catch (error) {
-        // Silently fail - don't interrupt logging if IPC fails
-      }
-    }
+    let result = str;
+    SENSITIVE_PATTERNS.forEach(pattern => {
+      result = result.replace(pattern, (match) => {
+        const keyPart = match.split(/[:=]/)[0];
+        return `${keyPart}=[REDACTED]`;
+      });
+    });
+    return result;
   }
 
   /**
    * Public logging methods
    */
   debug(message, meta = {}) {
-    this.log('DEBUG', message, meta);
+    this.winstonLogger.debug(message, this.sanitizeSensitiveData(meta));
   }
 
   info(message, meta = {}) {
-    this.log('INFO', message, meta);
+    this.winstonLogger.info(message, this.sanitizeSensitiveData(meta));
   }
 
   warn(message, meta = {}) {
-    this.log('WARN', message, meta);
+    this.winstonLogger.warn(message, this.sanitizeSensitiveData(meta));
   }
 
   error(message, meta = {}) {
-    this.log('ERROR', message, meta);
+    this.winstonLogger.error(message, this.sanitizeSensitiveData(meta));
   }
 
   /**
@@ -279,6 +283,9 @@ class Logger {
       username: config.username,
       authMethod: config.privateKey ? 'key' : 'password',
       success: result.success,
+      error: result.error || null,
+      duration: result.duration || 0,
+      category: 'audit',
       timestamp: new Date().toISOString()
     });
   }
@@ -289,10 +296,12 @@ class Logger {
   logSSHCommand(connectionId, command, result) {
     this.info('SSH command executed', {
       connectionId,
-      command: command.substring(0, 100), // Truncate long commands
+      command: command.substring(0, 200), // Truncate long commands for logs
       success: result.success,
-      exitCode: result.exitCode,
-      duration: result.duration,
+      exitCode: result.exitCode || null,
+      error: result.error || null,
+      duration: result.duration || 0,
+      category: 'audit',
       timestamp: new Date().toISOString()
     });
   }
@@ -300,15 +309,18 @@ class Logger {
   /**
    * Log file transfer
    */
-  logFileTransfer(type, connectionId, sourcePath, destPath, result) {
+  logFileTransfer(type, connectionId, sourcePath, destPath, fileSize, result) {
     this.info(`SSH file ${type}`, {
       connectionId,
-      sourcePath,
-      destPath,
+      type,
+      sourcePath: sourcePath.substring(0, 200),
+      destPath: destPath.substring(0, 200),
+      fileSize,
       success: result.success,
-      fileSize: result.fileSize,
-      duration: result.duration,
-      transferSpeed: result.transferSpeed,
+      error: result.error || null,
+      duration: result.duration || 0,
+      transferSpeed: result.speed || 0,
+      category: 'audit',
       timestamp: new Date().toISOString()
     });
   }
@@ -317,12 +329,16 @@ class Logger {
    * Log IPC request/response
    */
   logIPC(channel, type, data, error = null) {
-    const logLevel = error ? 'ERROR' : 'DEBUG';
-    this.log(logLevel, `IPC ${type}`, {
+    const level = error ? 'error' : 'debug';
+    const logMethod = this[level].bind(this);
+
+    logMethod(`IPC ${type}`, {
       channel,
+      type,
       hasError: !!error,
       error: error ? error.message : null,
       dataKeys: typeof data === 'object' ? Object.keys(data || {}) : null,
+      category: 'ipc',
       timestamp: new Date().toISOString()
     });
   }
@@ -339,7 +355,8 @@ class Logger {
    */
   readRecentLogs(lines = 100) {
     try {
-      const logFile = this.getCurrentLogFilePath();
+      const today = new Date().toISOString().split('T')[0];
+      const logFile = path.join(this.logsDirectory, `quantumxfer-${today}.log`);
       
       if (!fs.existsSync(logFile)) {
         return [];
@@ -358,7 +375,7 @@ class Logger {
           }
         });
     } catch (error) {
-      return [{ error: error.message, level: 'ERROR' }];
+      return [{ error: error.message, level: 'error' }];
     }
   }
 
@@ -367,7 +384,6 @@ class Logger {
    */
   exportLogs(outputPath) {
     try {
-      // Check if output directory exists and is writable
       const outputDir = path.dirname(outputPath);
       if (!fs.existsSync(outputDir)) {
         return { success: false, error: 'Output directory does not exist' };
@@ -386,6 +402,7 @@ class Logger {
    */
   setContext(context) {
     this.context = context;
+    this.winstonLogger.defaultMeta = { service: 'quantumxfer', context };
   }
 
   /**
@@ -393,17 +410,25 @@ class Logger {
    */
   createChild(childContext) {
     const childLogger = new Logger({
-      level: Object.keys(LOG_LEVELS).find(k => LOG_LEVELS[k] === this.minLevel),
+      level: this.minLevel,
       logsDirectory: this.logsDirectory,
       maxLogFileSize: this.maxLogFileSize,
       maxLogFiles: this.maxLogFiles,
       enableConsole: this.enableConsole,
       enableFile: this.enableFile,
-      context: childContext,
-      ipcLogger: this.ipcLogger
+      context: childContext
     });
 
     return childLogger;
+  }
+
+  /**
+   * Set log level dynamically
+   */
+  setLogLevel(level) {
+    this.minLevel = level.toUpperCase();
+    this.winstonLogger.level = level.toLowerCase();
+    this.info(`Log level changed to: ${level}`);
   }
 }
 
