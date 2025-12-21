@@ -1,67 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Star, LogOut } from 'lucide-react';
-import type { ConnectionProfile, Bookmark, NewBookmark, ServerRef } from './types/electron.d.ts';
-
-const isDebugMode = import.meta.env.DEV;
-
-// Silence verbose console logging in production while keeping errors intact
-if (!isDebugMode && typeof console !== 'undefined') {
-  console.log = () => {};
-  console.warn = () => {};
-}
-
-// Global Command History Feature:
-// - Single shared command history across all profiles and terminal windows
-// - Stored in: %APPDATA%\quantumxfer\command-history\global-command-history.json
-// - Maximum 500 commands to prevent excessive storage
-// - Persistent across app restarts and available in both main and terminal windows
-
-interface TerminalSession {
-  id: string;
-  config: SSHConfig;
-  terminalLogs: TerminalLog[];
-  commandHistory: string[];
-  historyIndex: number;
-  currentDirectory: string;
-  sessionId: string;
-  isConnected: boolean;
-  connectionId?: number;
-}
-
-interface SSHConfig {
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  profileName?: string;
-}
-
-interface TerminalLog {
-  id: string;
-  timestamp: Date;
-  command: string;
-  output: string;
-  directory: string;
-}
-
-interface SFTPFile {
-  name: string;
-  type: 'file' | 'directory';
-  size: number;
-  modified: Date;
-  permissions: string;
-  path: string;
-}
-
-function App() {
-  const [config, setConfig] = useState<SSHConfig>({
-    host: '',
-    port: 22,
-    username: '',
-    password: '',
-    profileName: ''
-  });
-
+import App from './App';
+export default App;
   // Tab management - replace isTerminalTab with activeTab
   const [activeTab, setActiveTab] = useState<'connection' | 'terminal'>('connection');
   const [terminalMode, setTerminalMode] = useState<'ssh' | 'sftp'>('ssh'); // For switching between SSH and SFTP in terminal tab
@@ -1568,16 +1506,13 @@ function App() {
           }}>
             {activeTab === 'connection' ? 'SSH Connection Setup' : 'Terminal Sessions'}
           </h1>
-          <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-            QuantumXfer v1.0.0
-          </div>
+          <div style={{ fontSize: '12px', color: '#94a3b8' }}>QuantumXfer v1.0.0</div>
         </div>
 
         {/* Tab Content */}
         <div style={{ flex: 1, padding: '0.75rem', overflowY: 'auto' }}>
         {activeTab === 'connection' && (
           <div>
-            {/* Connection Tab Content */}
             <div style={{ maxWidth: '800px', margin: '0 auto' }}>
               {/* Connection Form */}
               <div style={{
@@ -2152,30 +2087,7 @@ function App() {
                       Remote: {config.username}@{config.host}:{config.port}
                     </p>
                   </div>
-
-                  {/* Path Navigation */}
-                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #334155', backgroundColor: '#0f172a' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <button
-                        onClick={goToParentDirectory}
-                        disabled={remotePath === '/'}
-                        style={{
-                          padding: '0.25rem',
-                          backgroundColor: remotePath === '/' ? '#374151' : '#3b82f6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: remotePath === '/' ? 'not-allowed' : 'pointer',
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        ⬅️
-                      </button>
-                      <span style={{ color: '#f1f5f9', fontSize: '0.9rem', fontFamily: 'monospace' }}>
-                        {remotePath}
-                      </span>
-                    </div>
-                  </div>
+                </div>
 
                   {/* Search and Filter Bar */}
                   <div style={{
@@ -2532,8 +2444,8 @@ function App() {
                     🗑️ Clear Terminal
                   </button>
                 </div>
+                </div>
               </div>
-            </div>
           </div>
         )}
         </div>
