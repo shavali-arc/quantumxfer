@@ -26,7 +26,6 @@ test.describe('SSH Key Authentication UI', () => {
     await expect(authLabel).toBeVisible({ timeout: 5000 });
 
     // Select SSH Key option - find the radio button for SSH Key
-    const sshKeyRadio = window.locator('input[type="radio"]').filter({ has: window.locator('..') }).first();
     const passwordRadio = window.locator('label:has-text("Password")').first();
     
     // Check if the page has the auth selector
