@@ -561,11 +561,11 @@ ipcMain.handle('ssh-get-connections', IPCErrorHandler.wrapHandler(
   { timeout: 5000, retries: 0 }
 ));
 
-// Add IPC handler for writing log files
-ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
-  try {
+// Add IPC handler for writing log files with standardized error handling
+ipcMain.handle('write-log-file', IPCErrorHandler.wrapHandler(
+  async (event, logData, logsDirectory) => {
     if (!logsDirectory) {
-      return { success: false, error: 'No logs directory configured' };
+      throw new Error('No logs directory configured');
     }
 
     // Ensure the logs directory exists
@@ -582,14 +582,12 @@ ipcMain.handle('write-log-file', async (event, logData, logsDirectory) => {
     fs.writeFileSync(filePath, logData, 'utf8');
 
     return {
-      success: true,
       filePath: filePath,
       filename: filename
     };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  },
+  { timeout: 10000, retries: 0 }
+));
 
 // -----------------------------
 // Bookmarks: persistence helpers
@@ -629,19 +627,16 @@ function writeBookmarks(bookmarks) {
   }
 }
 
-// -----------------------------
-// Bookmarks: IPC handlers - Validated
-// -----------------------------
-ipcMain.handle('bookmarks-list', async () => {
-  try {
+// Bookmarks: IPC handlers - with standardized error handling
+ipcMain.handle('bookmarks-list', IPCErrorHandler.wrapHandler(
+  async () => {
     const bookmarks = readBookmarks();
-    return { success: true, bookmarks };
-  } catch (error) {
-    return { success: false, error: error.message, bookmarks: [] };
-  }
-});
+    return bookmarks;
+  },
+  { timeout: 5000, retries: 0 }
+));
 
-ipcMain.handle('bookmarks-add', HandlerValidator.createValidatedHandler(
+ipcMain.handle('bookmarks-add', IPCErrorHandler.wrapHandler(
   async (event, bookmark) => {
     const bookmarks = readBookmarks();
     // Prevent duplicates: same type + server + path/host
@@ -663,25 +658,25 @@ ipcMain.handle('bookmarks-add', HandlerValidator.createValidatedHandler(
       });
       const result = writeBookmarks(bookmarks);
       if (!result.success) {
-        return { success: false, error: result.error };
+        throw new Error(result.error);
       }
     }
-    return { success: true, bookmarks: readBookmarks() };
+    return readBookmarks();
   },
-  (bookmark) => HandlerValidator.validateBookmarkObject(bookmark)
+  { timeout: 10000, retries: 0 }
 ));
 
-ipcMain.handle('bookmarks-remove', HandlerValidator.createValidatedHandler(
+ipcMain.handle('bookmarks-remove', IPCErrorHandler.wrapHandler(
   async (event, bookmarkId) => {
     const bookmarks = readBookmarks();
     const filtered = bookmarks.filter(b => b.id !== bookmarkId);
     const result = writeBookmarks(filtered);
     if (!result.success) {
-      return { success: false, error: result.error };
+      throw new Error(result.error);
     }
-    return { success: true, bookmarks: filtered };
+    return filtered;
   },
-  (bookmarkId) => HandlerValidator.validateBookmarkId(bookmarkId)
+  { timeout: 10000, retries: 0 }
 ));
 
 // Helper function to encrypt passwords in profiles
@@ -734,9 +729,11 @@ function decryptProfiles(profiles) {
     return profile;
   });
 }
-ipcMain.handle('save-profiles-to-file', HandlerValidator.createValidatedHandler(
+ipcMain.handle('save-profiles-to-file', IPCErrorHandler.wrapHandler(
   async (event, profiles) => {
     console.log('=== IPC: save-profiles-to-file called ===');
+    HandlerValidator.validateProfilesArray(profiles);
+    
     const userDataPath = app.getPath('userData');
     const profilesDir = path.join(userDataPath, 'profiles');
     
@@ -751,19 +748,19 @@ ipcMain.handle('save-profiles-to-file', HandlerValidator.createValidatedHandler(
     const profilesPath = path.join(profilesDir, 'connection-profiles.json');
     fs.writeFileSync(profilesPath, JSON.stringify(encryptedProfiles, null, 2), 'utf8');
     
-    return { success: true, filePath: profilesPath };
+    return { filePath: profilesPath };
   },
-  (profiles) => HandlerValidator.validateProfilesArray(profiles)
+  { timeout: 10000, retries: 0 }
 ));
 
-ipcMain.handle('load-profiles-from-file', async () => {
-  console.log('=== IPC: load-profiles-from-file called ===');
-  try {
+ipcMain.handle('load-profiles-from-file', IPCErrorHandler.wrapHandler(
+  async () => {
+    console.log('=== IPC: load-profiles-from-file called ===');
     const userDataPath = app.getPath('userData');
     const profilesPath = path.join(userDataPath, 'profiles', 'connection-profiles.json');
     
     if (!fs.existsSync(profilesPath)) {
-      return { success: true, profiles: [] };
+      return { profiles: [] };
     }
     
     const profilesData = fs.readFileSync(profilesPath, 'utf8');
@@ -772,11 +769,10 @@ ipcMain.handle('load-profiles-from-file', async () => {
     // Decrypt passwords before returning
     const decryptedProfiles = decryptProfiles(encryptedProfiles);
     
-    return { success: true, profiles: decryptedProfiles };
-  } catch (error) {
-    return { success: false, error: error.message, profiles: [] };
-  }
-});
+    return { profiles: decryptedProfiles };
+  },
+  { timeout: 10000, retries: 0 }
+));
 
 
 // Global Command History Feature:
@@ -785,10 +781,14 @@ ipcMain.handle('load-profiles-from-file', async () => {
 // - Maximum 500 commands to prevent excessive storage
 // - All commands from all connections are stored in one global history
 // Add IPC handlers for centralized command history
-ipcMain.handle('save-command-history', async (event, data) => {
-  console.log('=== IPC: save-command-history called ===');
-  try {
+ipcMain.handle('save-command-history', IPCErrorHandler.wrapHandler(
+  async (event, data) => {
+    console.log('=== IPC: save-command-history called ===');
     const { commands } = data;
+    if (!Array.isArray(commands)) {
+      throw new Error('Commands must be an array');
+    }
+    
     const userDataPath = app.getPath('userData');
     const historyDir = path.join(userDataPath, 'command-history');
 
@@ -806,39 +806,39 @@ ipcMain.handle('save-command-history', async (event, data) => {
     fs.writeFileSync(historyPath, JSON.stringify(historyData, null, 2), 'utf8');
     console.log(`Global command history saved: ${commands.length} commands`);
 
-    return { success: true, filePath: historyPath };
-  } catch (error) {
-    console.error('Error saving global command history:', error);
-    return { success: false, error: error.message };
-  }
-});
+    return { filePath: historyPath };
+  },
+  { timeout: 10000, retries: 0 }
+));
 
-ipcMain.handle('load-command-history', async () => {
-  console.log('=== IPC: load-command-history called ===');
-  try {
+ipcMain.handle('load-command-history', IPCErrorHandler.wrapHandler(
+  async () => {
+    console.log('=== IPC: load-command-history called ===');
     const userDataPath = app.getPath('userData');
     const historyPath = path.join(userDataPath, 'command-history', 'global-command-history.json');
 
     if (!fs.existsSync(historyPath)) {
       console.log('No global command history found');
-      return { success: true, commands: [] };
+      return { commands: [] };
     }
 
     const historyData = fs.readFileSync(historyPath, 'utf8');
     const parsed = JSON.parse(historyData);
 
     console.log(`Loaded global command history: ${parsed.commands.length} commands`);
-    return { success: true, commands: parsed.commands };
-  } catch (error) {
-    console.error('Error loading global command history:', error);
-    return { success: false, error: error.message, commands: [] };
-  }
-});
+    return { commands: parsed.commands };
+  },
+  { timeout: 10000, retries: 0 }
+));
 
-ipcMain.handle('append-command-history', async (event, data) => {
-  console.log('=== IPC: append-command-history called ===');
-  try {
+ipcMain.handle('append-command-history', IPCErrorHandler.wrapHandler(
+  async (event, data) => {
+    console.log('=== IPC: append-command-history called ===');
     const { command } = data;
+    if (typeof command !== 'string' || !command.trim()) {
+      throw new Error('Command must be a non-empty string');
+    }
+    
     const userDataPath = app.getPath('userData');
     const historyPath = path.join(userDataPath, 'command-history', 'global-command-history.json');
 
@@ -860,12 +860,10 @@ ipcMain.handle('append-command-history', async (event, data) => {
     fs.writeFileSync(historyPath, JSON.stringify(historyData, null, 2), 'utf8');
     console.log(`Command appended to global history: "${command}"`);
 
-    return { success: true, commands };
-  } catch (error) {
-    console.error('Error appending command to global history:', error);
-    return { success: false, error: error.message };
-  }
-});
+    return { commands };
+  },
+  { timeout: 10000, retries: 0 }
+));
 
 // ============================================
 // SSH KEY MANAGEMENT IPC HANDLERS
@@ -1090,11 +1088,15 @@ ipcMain.handle('ssh-key-test', IPCErrorHandler.wrapHandler(
 ));
 
 // Add IPC handler for opening terminal window
-ipcMain.handle('open-terminal-window', async (event, terminalData) => {
-  console.log('=== IPC: open-terminal-window called ===');
-  console.log('Terminal data received:', JSON.stringify(terminalData, null, 2));
+ipcMain.handle('open-terminal-window', IPCErrorHandler.wrapHandler(
+  async (event, terminalData) => {
+    console.log('=== IPC: open-terminal-window called ===');
+    console.log('Terminal data received:', JSON.stringify(terminalData, null, 2));
 
-  try {
+    if (!terminalData || !terminalData.config) {
+      throw new Error('Terminal data with config is required');
+    }
+
     const terminalWindow = new BrowserWindow({
       width: 1200,
       height: 800,
@@ -1126,7 +1128,8 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
       console.log('Loading index.html from:', indexPath);
       await terminalWindow.loadFile(indexPath + '#terminal');
       console.log('Terminal file loaded successfully');
-    }    console.log('Terminal window content loaded successfully');
+    }
+    console.log('Terminal window content loaded successfully');
 
     // Set terminal mode immediately when DOM is ready
     terminalWindow.webContents.once('dom-ready', () => {
@@ -1176,13 +1179,10 @@ ipcMain.handle('open-terminal-window', async (event, terminalData) => {
     console.log('Terminal window shown and focused');
 
     console.log('=== Terminal window setup complete ===');
-    return { success: true, message: 'Terminal window opened successfully' };  } catch (error) {
-    console.error('=== ERROR: Failed to create terminal window ===');
-    console.error('Error details:', error);
-    console.error('Error stack:', error.stack);
-    return { success: false, error: error.message };
-  }
-});
+    return { message: 'Terminal window opened successfully' };
+  },
+  { timeout: 15000, retries: 0 }
+));
 
 // Security: Handle new window creation - Only block external URLs
 app.on('web-contents-created', (event, contents) => {
