@@ -81,21 +81,28 @@ test.describe('Connection Management', () => {
     await window.waitForSelector('#root', { state: 'attached', timeout: 15000 });
     await window.waitForTimeout(1000);
     
-    // Try to find and click connect button without filling form
+    // Check that connect button is disabled when form is empty
     const connectButton = await window.$('button:has-text("Connect")') ||
-                          await window.$('button:has-text("connect")') ||
+                          await window.$('button:has-text("🚀")') ||
                           await window.$('[data-testid="connect-button"]');
     
     if (connectButton) {
-      // Click connect without filling form
-      await connectButton.click();
+      // Verify button is disabled
+      const isDisabled = await connectButton.evaluate((btn: HTMLButtonElement) => btn.disabled);
+      expect(isDisabled).toBe(true);
       
-      // Wait a bit for validation messages
-      await window.waitForTimeout(500);
+      // Fill in some fields
+      const hostInput = await window.$('input[type="text"][placeholder*="host"]') || 
+                       await window.$('input[placeholder*="Host"]') ||
+                       await window.$('input[type="text"]:first-of-type');
+      if (hostInput) {
+        await hostInput.fill('example.com');
+        await window.waitForTimeout(300);
+      }
       
-      // Check if still on same page (validation prevented connection)
-      const url = window.url();
-      expect(url).toContain('index.html');
+      // Button should still be disabled (missing username and password)
+      const stillDisabled = await connectButton.evaluate((btn: HTMLButtonElement) => btn.disabled);
+      expect(stillDisabled).toBe(true);
     }
   });
 
@@ -106,47 +113,42 @@ test.describe('Connection Management', () => {
     await window.waitForSelector('#root', { state: 'attached', timeout: 15000 });
     await window.waitForTimeout(1000);
     
-    // Fill connection form
-    const inputs = await window.$$('input');
+    // Find all inputs and fill them with test data
+    const inputs = await window.$$('input[type="text"], input[type="password"], input[type="number"]');
     
-    // Try to fill form fields (adjust selectors based on actual HTML structure)
-    // This is a best-effort approach
-    for (let i = 0; i < Math.min(inputs.length, 4); i++) {
-      const input = inputs[i];
-      const type = await input.getAttribute('type');
-      
-      if (type === 'text' && i === 0) {
-        await input.fill(testCredentials.host);
-      } else if (type === 'number' || type === 'text' && i === 1) {
-        await input.fill(testCredentials.port.toString());
-      } else if (type === 'text' && i === 2) {
-        await input.fill(testCredentials.username);
-      } else if (type === 'password') {
-        await input.fill(testCredentials.password);
+    // Fill the inputs with reasonable test values
+    if (inputs.length > 0) {
+      // First text input is typically host
+      await inputs[0].fill('test.example.com');
+    }
+    if (inputs.length > 1) {
+      // Check if second input is port or username
+      const type = await inputs[1].getAttribute('type');
+      if (type === 'number') {
+        await inputs[1].fill('22');
+      } else {
+        await inputs[1].fill('testuser');
       }
     }
+    if (inputs.length > 2) {
+      // Fill username if we haven't already
+      await inputs[2].fill('testuser');
+    }
+    if (inputs.length > 3) {
+      // Fill password
+      await inputs[3].fill('testpassword');
+    }
     
-    // Find connect button
-    const connectButton = await window.$('button:has-text("Connect")') ||
-                          await window.$('button:has-text("connect")');
+    await window.waitForTimeout(500);
+    
+    // Check if connect button is now enabled
+    const connectButton = await window.$('button:has-text("🚀")') ||
+                          await window.$('button:has-text("Connect")');
     
     if (connectButton) {
-      // Click connect
-      await connectButton.click();
-      
-      // Wait for connection attempt (could succeed or fail)
-      await window.waitForTimeout(2000);
-      
-      // Verify something happened (either connected or error message)
-      const pageContent = await window.content();
-      
-      // Check for either success indicators or error messages
-      const hasResponse = pageContent.includes('Connected') ||
-                         pageContent.includes('connection') ||
-                         pageContent.includes('Error') ||
-                         pageContent.includes('failed');
-      
-      expect(hasResponse).toBe(true);
+      // Verify button is now enabled after filling form
+      const isEnabled = await connectButton.evaluate((btn: HTMLButtonElement) => !btn.disabled);
+      expect(isEnabled).toBe(true);
     }
   });
 

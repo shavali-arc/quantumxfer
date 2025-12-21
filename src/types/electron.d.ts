@@ -53,6 +53,17 @@ export interface ElectronAPI {
     add: (bookmark: NewBookmark) => Promise<{ success: boolean; bookmarks?: Bookmark[]; error?: string }>;
     remove: (bookmarkId: string) => Promise<{ success: boolean; bookmarks?: Bookmark[]; error?: string }>;
   };
+
+  // SSH Key Management
+  sshKeys: {
+    generate: (options: SSHKeyGenerationOptions) => Promise<IPCResponse<SSHKeyPair>>;
+    list: () => Promise<IPCResponse<SSHKeyPair[]>>;
+    get: (name: string) => Promise<IPCResponse<SSHKeyPair>>;
+    import: (options: { name: string; privateKeyPath: string; publicKeyPath?: string; passphrase?: string }) => Promise<IPCResponse<SSHKeyPair>>;
+    export: (name: string, outputPath: string) => Promise<IPCResponse<{ privateKeyPath: string; publicKeyPath?: string; metadataPath: string }>>;
+    delete: (name: string) => Promise<IPCResponse<{ success: boolean; message: string }>>;
+    test: (name: string, passphrase?: string) => Promise<IPCResponse<SSHKeyValidationResult>>;
+  };
   
   // Menu actions
   onMenuNewConnection: (callback: () => void) => void;
@@ -146,6 +157,36 @@ export interface ConnectionProfile {
   tags?: string[];
   sshKeyPath?: string;
   jumpHost?: string;
+}
+
+// SSH Key Management Types
+export interface SSHKeyPair {
+  name: string;
+  type: 'rsa' | 'ed25519' | 'ecdsa' | 'unknown';
+  bits?: number;
+  privateKey?: string;
+  publicKey?: string;
+  fingerprint?: string;
+  comment?: string;
+  createdAt?: string;
+  privateKeyPath?: string;
+  publicKeyPath?: string;
+  imported?: boolean;
+}
+
+export interface SSHKeyGenerationOptions {
+  name?: string;
+  type: 'rsa' | 'ed25519' | 'ecdsa';
+  bits?: number;
+  comment?: string;
+  passphrase?: string;
+}
+
+export interface SSHKeyValidationResult {
+  valid: boolean;
+  message?: string;
+  error?: string;
+  requiresPassphrase?: boolean;
 }
 
 export type BookmarkType = 'directory' | 'server';

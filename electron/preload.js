@@ -43,6 +43,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     add: (bookmark) => ipcRenderer.invoke('bookmarks-add', bookmark),
     remove: (bookmarkId) => ipcRenderer.invoke('bookmarks-remove', bookmarkId)
   },
+
+  // SSH Key Management
+  sshKeys: {
+    generate: (options) => ipcRenderer.invoke('ssh-key-generate', options),
+    list: () => ipcRenderer.invoke('ssh-keys-list'),
+    get: (name) => ipcRenderer.invoke('ssh-key-get', name),
+    import: (options) => ipcRenderer.invoke('ssh-key-import', options),
+    export: (name, outputPath) => ipcRenderer.invoke('ssh-key-export', name, outputPath),
+    delete: (name) => ipcRenderer.invoke('ssh-key-delete', name),
+    test: (name, passphrase) => ipcRenderer.invoke('ssh-key-test', name, passphrase)
+  },
   
   // Menu actions
   onMenuNewConnection: (callback) => ipcRenderer.on('menu-new-connection', callback),

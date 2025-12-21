@@ -213,10 +213,135 @@ All pipelines must pass before merging:
 - Assign priority (P0-critical, P1-high, P2-medium)
 - Assign to yourself or team member
 
-### Issue Updates
-- Comment on progress updates
-- Link related PRs
-- Close with reference in PR: `Closes #XX` or `Fixes #XX`
+### Issue Updates - Keep Living Documentation
+**Issues should serve as living documents that track progress, analysis, and decisions throughout development.**
+
+#### Regular Update Cadence
+- **Daily (during active development):** Add brief progress comments
+- **Upon discovery:** Document analysis findings, root causes, or blockers
+- **Before implementation:** Post solution approach and technical plan
+- **After milestones:** Update acceptance criteria completion status
+- **On blockers:** Document investigation results and proposed resolution
+
+#### Interim Data to Capture in Issue Comments
+
+1. **Analysis & Investigation**
+   ```
+   ## Analysis
+   - Root Cause: [What caused the issue, findings from investigation]
+   - Affected Components: [List affected files/modules]
+   - Impact Assessment: [Scope of impact, severity]
+   - Dependencies Discovered: [External dependencies, breaking changes]
+   - Example: "Found that IPC timeout was hardcoded to 5s, causing issues with large file transfers"
+   ```
+
+2. **Root Cause Documentation**
+   ```
+   ## Root Cause
+   - Issue: [Specific problem identified]
+   - When: [Under what conditions does it occur]
+   - Why: [Underlying reason]
+   - Scope: [Percentage of users/features affected]
+   - Example: "SSH key import fails with PPK format due to missing format handler in ssh-key-manager.js"
+   ```
+
+3. **Solution Architecture**
+   ```
+   ## Solution Planned
+   - Approach: [High-level strategy]
+   - Components to Modify: [Files/modules involved]
+   - New Interfaces/Types: [TypeScript types to add]
+   - Breaking Changes: [Any API changes]
+   - Rollback Plan: [How to revert if needed]
+   - Example: "Add PPK format handler to ssh-key-manager.js using crypto module for PEM conversion"
+   ```
+
+4. **Technical Design Details**
+   ```
+   ## Implementation Plan
+   - Step 1: [Specific task with file references]
+   - Step 2: [Next step with expected output]
+   - Estimated Effort: [Time estimate]
+   - Known Risks: [Potential issues and mitigation]
+   - Testing Strategy: [How to validate the fix]
+   ```
+
+5. **Progress Tracking**
+   ```
+   ## Progress
+   - [x] Analysis completed
+   - [ ] Design review
+   - [ ] Implementation started (50% complete)
+   - [ ] Testing in progress
+   - [ ] Code review pending
+   - [ ] Ready for merge
+   
+   Last Updated: [date] - [brief status]
+   ```
+
+6. **Findings & Decisions**
+   ```
+   ## Key Decisions
+   - Decision: [What was chosen and why]
+   - Alternatives Considered: [Other options evaluated]
+   - Rationale: [Why this is the best approach]
+   - Trade-offs: [What we gain/lose]
+   ```
+
+#### Comment Guidelines
+- Use markdown formatting for readability
+- Include code snippets, error messages, or logs when relevant (sanitize sensitive data)
+- Reference commit SHAs or file paths for context
+- Tag collaborators with @mention when seeking review or input
+- Update status in comments instead of editing original description if possible (preserves history)
+
+#### Example Issue Update Flow
+```
+## Issue #101 - Key Generator Component
+
+### Initial Creation (Dec 20)
+[Original requirements and acceptance criteria]
+
+### Dec 20 - Analysis Comment
+"Reviewed existing SSH key manager utility. Found that:
+- window.electronAPI.sshKeys.generate() is ready
+- Need to create React form component with Tailwind styling
+- Should follow pattern from existing ProfileEditor component"
+
+### Dec 21 - Design Comment
+"Solution Plan:
+1. Create src/components/KeyGenerator.tsx
+2. Form fields: type selector, bits selector, comment, passphrase
+3. Use existing UI patterns from src/components/ProfileEditor.tsx
+4. Integrate with window.electronAPI.sshKeys.generate() IPC handler"
+
+### Dec 21 - Progress Comment
+"Implementation Progress:
+- [x] Component scaffold created
+- [x] Form fields implemented
+- [ ] Error handling (in progress - 50% complete)
+- [ ] Unit tests pending
+- Encountered: TypeScript types for key options need refinement"
+
+### Dec 22 - Final Comment
+"Implementation complete! Summary:
+- Component: src/components/KeyGenerator.tsx (280 lines)
+- Tests: 18 unit tests (100% coverage)
+- Ready for: Code review in PR #106
+- Related files: Types updated in electron.d.ts, Preload API exposed"
+```
+
+### Issue Updates - Link to Work Items
+- Link feature branches to issues using commit messages: `[Issue #XX]`
+- Add PR link to issue when PR is created: "Implemented in PR #YYY"
+- Cross-reference related issues: "Related to: Issue #ZZZ"
+- Update related issues with blockers or dependencies
+
+### Closing Issues
+- Close with PR reference: `Closes #XX` or `Fixes #XX` in PR description
+- Verify all acceptance criteria marked complete before closing
+- Document final status in closing comment if not obvious from commits
+- Archive decision history in issue for future reference
 
 ## Project-Specific Guidelines
 
@@ -277,5 +402,5 @@ gh pr create --title "[Issue #XX] Title" --body "Description"
 
 ---
 
-**Last Updated:** December 15, 2025
+**Last Updated:** December 20, 2025
 **Maintained By:** QuantumXfer Development Team

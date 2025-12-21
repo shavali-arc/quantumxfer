@@ -17,6 +17,9 @@ import IPCErrorHandler from './ipc-error-handler.js';
 // Import Structured Logger
 import Logger from './logger.js';
 
+// Import SSH Key Manager
+import SSHKeyManager from './ssh-key-manager.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -29,6 +32,9 @@ const isDev = process.env.NODE_ENV === 'development';
 
 // Initialize SSH service
 const sshService = new SSHService();
+
+// Initialize SSH Key Manager
+const sshKeyManager = new SSHKeyManager();
 
 // Initialize Structured Logger
 const logger = new Logger({
@@ -860,6 +866,228 @@ ipcMain.handle('append-command-history', async (event, data) => {
     return { success: false, error: error.message };
   }
 });
+
+// ============================================
+// SSH KEY MANAGEMENT IPC HANDLERS
+// ============================================
+
+// Generate SSH key pair
+ipcMain.handle('ssh-key-generate', IPCErrorHandler.wrapHandler(
+  async (event, options) => {
+    logger.info('SSH key generation initiated', {
+      keyType: options.type,
+      bits: options.bits,
+      hasPassphrase: !!options.passphrase
+    });
+
+    try {
+      const keyPair = await sshKeyManager.generateKeyPair(options);
+      
+      // Save to storage
+      const saved = await sshKeyManager.saveKeyPair({
+        ...keyPair,
+        name: options.name || `key-${Date.now()}`
+      });
+
+      logger.info('SSH key pair generated successfully', {
+        name: saved.name,
+        type: saved.type,
+        fingerprint: saved.fingerprint
+      });
+
+      return {
+        success: true,
+        data: saved
+      };
+    } catch (error) {
+      logger.error('SSH key generation failed', {
+        error: error.message,
+        type: options.type
+      });
+      throw error;
+    }
+  },
+  { timeout: 30000, retries: 0 }
+));
+
+// List SSH key pairs
+ipcMain.handle('ssh-keys-list', IPCErrorHandler.wrapHandler(
+  async () => {
+    logger.info('SSH keys listing requested');
+    
+    try {
+      const keys = sshKeyManager.listKeyPairs();
+      
+      logger.debug('SSH keys listed', {
+        count: keys.length
+      });
+
+      return {
+        success: true,
+        data: keys
+      };
+    } catch (error) {
+      logger.error('Failed to list SSH keys', {
+        error: error.message
+      });
+      throw error;
+    }
+  },
+  { timeout: 10000, retries: 0 }
+));
+
+// Get SSH key pair details
+ipcMain.handle('ssh-key-get', IPCErrorHandler.wrapHandler(
+  async (event, name) => {
+    logger.info('SSH key retrieval requested', { name });
+    
+    try {
+      const keyPair = sshKeyManager.getKeyPair(name);
+      
+      logger.debug('SSH key retrieved', {
+        name,
+        type: keyPair.type,
+        hasPrivateKey: !!keyPair.privateKey,
+        hasPublicKey: !!keyPair.publicKey
+      });
+
+      return {
+        success: true,
+        data: keyPair
+      };
+    } catch (error) {
+      logger.error('Failed to retrieve SSH key', {
+        error: error.message,
+        name
+      });
+      throw error;
+    }
+  },
+  { timeout: 10000, retries: 0 }
+));
+
+// Import SSH key pair
+ipcMain.handle('ssh-key-import', IPCErrorHandler.wrapHandler(
+  async (event, options) => {
+    logger.info('SSH key import initiated', {
+      name: options.name,
+      hasPrivateKey: !!options.privateKeyPath
+    });
+
+    try {
+      const imported = await sshKeyManager.importKeyPair(options);
+      const saved = await sshKeyManager.saveKeyPair(imported);
+
+      logger.info('SSH key imported successfully', {
+        name: saved.name,
+        type: saved.type,
+        fingerprint: saved.fingerprint
+      });
+
+      return {
+        success: true,
+        data: saved
+      };
+    } catch (error) {
+      logger.error('SSH key import failed', {
+        error: error.message,
+        name: options.name
+      });
+      throw error;
+    }
+  },
+  { timeout: 15000, retries: 0 }
+));
+
+// Export SSH key pair
+ipcMain.handle('ssh-key-export', IPCErrorHandler.wrapHandler(
+  async (event, name, outputPath) => {
+    logger.info('SSH key export initiated', {
+      name,
+      outputPath
+    });
+
+    try {
+      const result = await sshKeyManager.exportKeyPair(name, outputPath);
+
+      logger.info('SSH key exported successfully', {
+        name,
+        outputPath,
+        hasPrivateKey: !!result.privateKeyPath,
+        hasPublicKey: !!result.publicKeyPath
+      });
+
+      return {
+        success: true,
+        data: result
+      };
+    } catch (error) {
+      logger.error('SSH key export failed', {
+        error: error.message,
+        name
+      });
+      throw error;
+    }
+  },
+  { timeout: 15000, retries: 0 }
+));
+
+// Delete SSH key pair
+ipcMain.handle('ssh-key-delete', IPCErrorHandler.wrapHandler(
+  async (event, name) => {
+    logger.info('SSH key deletion initiated', { name });
+
+    try {
+      const result = sshKeyManager.deleteKeyPair(name);
+
+      logger.info('SSH key deleted successfully', { name });
+
+      return {
+        success: true,
+        data: result
+      };
+    } catch (error) {
+      logger.error('SSH key deletion failed', {
+        error: error.message,
+        name
+      });
+      throw error;
+    }
+  },
+  { timeout: 10000, retries: 0 }
+));
+
+// Test SSH key validity
+ipcMain.handle('ssh-key-test', IPCErrorHandler.wrapHandler(
+  async (event, name, passphrase = '') => {
+    logger.info('SSH key validity test initiated', { name });
+
+    try {
+      const result = sshKeyManager.testKeyValidity(name, passphrase);
+
+      if (result.valid) {
+        logger.info('SSH key is valid', { name });
+      } else {
+        logger.warn('SSH key validation failed', {
+          name,
+          error: result.error
+        });
+      }
+
+      return {
+        success: result.valid,
+        data: result
+      };
+    } catch (error) {
+      logger.error('SSH key test failed', {
+        error: error.message,
+        name
+      });
+      throw error;
+    }
+  },
+  { timeout: 10000, retries: 0 }
+));
 
 // Add IPC handler for opening terminal window
 ipcMain.handle('open-terminal-window', async (event, terminalData) => {

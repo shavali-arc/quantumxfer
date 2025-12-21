@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ConnectionProfile } from './types/electron.d.ts';
+import type { ConnectionProfile, SSHKeyPair } from './types/electron.d.ts';
 
 const isDebugMode = import.meta.env.DEV;
 
@@ -19,7 +19,8 @@ interface SSHConfig {
   host: string;
   port: number;
   username: string;
-  password: string;
+  password?: string;
+  privateKey?: string;
   profileName?: string;
 }
 
@@ -59,6 +60,7 @@ function App() {
     port: 22,
     username: '',
     password: '',
+    privateKey: '',
     profileName: ''
   });
   
@@ -81,6 +83,27 @@ function App() {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
   const [showProfiles, setShowProfiles] = useState(false);
   const [selectedLogsDirectory, setSelectedLogsDirectory] = useState<string>('');
+  // SSH Key auth state
+  const [useSSHKey, setUseSSHKey] = useState<boolean>(false);
+  const [sshKeys, setSshKeys] = useState<SSHKeyPair[]>([]);
+  const [selectedKeyName, setSelectedKeyName] = useState<string>('');
+
+  // Load SSH keys when opting into key auth
+  useEffect(() => {
+    const loadKeys = async () => {
+      try {
+        if (window.electronAPI?.sshKeys?.list) {
+          const res = await window.electronAPI.sshKeys.list();
+          if (res.success && Array.isArray(res.data)) {
+            setSshKeys(res.data);
+          }
+        }
+      } catch {
+        // Ignore; keys optional
+      }
+    };
+    if (useSSHKey) loadKeys();
+  }, [useSSHKey]);
 
   // Enterprise features state
   const [searchQuery, setSearchQuery] = useState('');
@@ -442,9 +465,10 @@ function App() {
     console.log('Current config state:', config);
     console.log('Config validation - host:', !!config.host, 'username:', !!config.username, 'password:', !!config.password);
     
-    if (!config.host || !config.username || !config.password) {
+    const hasAuth = useSSHKey ? !!config.privateKey : !!config.password;
+    if (!config.host || !config.username || !hasAuth) {
       console.log('=== CONFIG VALIDATION FAILED ===');
-      setNotification({ message: 'Please fill in all connection details', type: 'error' });
+      setNotification({ message: 'Please complete host, username, and authentication', type: 'error' });
       return;
     }
 
@@ -456,13 +480,18 @@ function App() {
       // Check if we're running in Electron
       if (window.electronAPI && window.electronAPI.ssh) {
         // Use real SSH connection via Electron
-        const result = await window.electronAPI.ssh.connect({
+        const connectConfig: SSHConfig = {
           host: config.host,
           port: config.port,
           username: config.username,
-          password: config.password,
           profileName: config.profileName
-        });
+        };
+        if (useSSHKey && config.privateKey) {
+          connectConfig.privateKey = config.privateKey;
+        } else {
+          connectConfig.password = config.password;
+        }
+        const result = await window.electronAPI.ssh.connect(connectConfig);
 
         if (result.success && result.connectionId) {
           setIsConnected(true);
@@ -483,7 +512,13 @@ function App() {
             if (existingProfile) {
               const updatedProfiles = profiles.map(profile => 
                 profile.id === existingProfile.id 
-                  ? { ...profile, name: config.profileName!, lastUsed: new Date(), password: config.password }
+                  ? { 
+                      ...profile, 
+                      name: config.profileName!, 
+                      lastUsed: new Date(), 
+                      password: useSSHKey ? undefined : config.password, 
+                      sshKeyPath: useSSHKey ? config.privateKey : undefined 
+                    }
                   : profile
               );
               saveProfiles(updatedProfiles);
@@ -495,10 +530,11 @@ function App() {
                 host: config.host,
                 port: config.port,
                 username: config.username,
-                password: config.password, // Store password securely
+                password: useSSHKey ? undefined : config.password, // Store password securely
                 lastUsed: new Date(),
                 logsDirectory: selectedLogsDirectory || undefined,
-                commandHistory: []
+                commandHistory: [],
+                sshKeyPath: useSSHKey ? config.privateKey : undefined
               };
               const updatedProfiles = [...profiles, newProfile];
               saveProfiles(updatedProfiles);
@@ -880,6 +916,14 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
       password: profile.password || '', // Load password from profile
       profileName: profile.name
     }));
+    // Toggle auth method based on profile
+    if (profile.sshKeyPath) {
+      setUseSSHKey(true);
+      setConfig(prev => ({ ...prev, privateKey: profile.sshKeyPath, password: '' }));
+    } else {
+      setUseSSHKey(false);
+      setConfig(prev => ({ ...prev, privateKey: '' }));
+    }
     
     // Load logs directory from profile if available
     if (profile.logsDirectory) {
@@ -2455,22 +2499,84 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Password *</label>
-              <input
-                type="password"
-                value={config.password}
-                onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  backgroundColor: '#334155',
-                  border: '1px solid #475569',
-                  borderRadius: '4px',
-                  color: 'white',
-                  fontSize: '1rem'
-                }}
-                placeholder="••••••••"
-              />
+              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Authentication *</label>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="radio"
+                    checked={!useSSHKey}
+                    onChange={() => setUseSSHKey(false)}
+                  />
+                  <span>Password</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="radio"
+                    checked={useSSHKey}
+                    onChange={() => setUseSSHKey(true)}
+                  />
+                  <span>SSH Key</span>
+                </label>
+              </div>
+              {!useSSHKey ? (
+                <input
+                  type="password"
+                  value={config.password}
+                  onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    backgroundColor: '#334155',
+                    border: '1px solid #475569',
+                    borderRadius: '4px',
+                    color: 'white',
+                    fontSize: '1rem'
+                  }}
+                  placeholder="••••••••"
+                />
+              ) : (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <select
+                    value={selectedKeyName}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setSelectedKeyName(name);
+                      const key = sshKeys.find(k => (k.name || '') === name);
+                      setConfig(prev => ({ ...prev, privateKey: key?.privateKeyPath || '' }));
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      backgroundColor: '#334155',
+                      border: '1px solid #475569',
+                      borderRadius: '4px',
+                      color: 'white',
+                      fontSize: '1rem'
+                    }}
+                  >
+                    <option value="">Select SSH key...</option>
+                    {sshKeys.map(k => (
+                      <option key={k.name} value={k.name || ''}>
+                        {k.name} {k.type ? `(${k.type})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => { window.location.hash = '#keys'; }}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      backgroundColor: '#3b82f6',
+                      border: '1px solid #475569',
+                      borderRadius: '4px',
+                      color: 'white',
+                      fontSize: '0.9rem',
+                      cursor: 'pointer'
+                    }}
+                    title="Manage SSH Keys"
+                  >Manage Keys</button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2580,17 +2686,22 @@ drwxr-xr-x 2 user user 4096 Aug 21 10:00 Downloads
 
           <button
             onClick={handleConnect}
-            disabled={!config.host || !config.username || !config.password}
+            disabled={
+              !config.host || 
+              !config.username || 
+              (!useSSHKey && !config.password) ||
+              (useSSHKey && !config.privateKey)
+            }
             style={{
               width: '100%',
               padding: '1rem 1.5rem',
-              background: !config.host || !config.username || !config.password ? '#374151' : 'linear-gradient(45deg, #06b6d4, #3b82f6)',
+              background: (!config.host || !config.username || (!useSSHKey && !config.password) || (useSSHKey && !config.privateKey)) ? '#374151' : 'linear-gradient(45deg, #06b6d4, #3b82f6)',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontSize: '1.1rem',
               fontWeight: '600',
-              cursor: !config.host || !config.username || !config.password ? 'not-allowed' : 'pointer',
+              cursor: (!config.host || !config.username || (!useSSHKey && !config.password) || (useSSHKey && !config.privateKey)) ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s'
             }}
           >
